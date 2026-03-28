@@ -19,6 +19,7 @@
 #endif
 #include <format>
 #include <jni.h>
+#include <sstream>
 
 using Exception = std::exception;
 using NotImplementedException = std::runtime_error;
@@ -1388,7 +1389,9 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetValue(JNIEnv* en
         case LBUG_UINT64: {
             uint64_t value = 0;
             throwIfError(lbug_value_get_uint64(v, &value), "Failed to read UINT64 value");
-            std::string valueStr = std::to_string(value);
+            std::ostringstream valueStream;
+            valueStream << value;
+            std::string valueStr = valueStream.str();
             jstring val = env->NewStringUTF(valueStr.c_str());
             jobject ret = env->NewObject(J_C_BigInteger, J_C_BigInteger_M_init, val);
             return ret;
