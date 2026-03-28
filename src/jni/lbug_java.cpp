@@ -17,7 +17,6 @@
 #else
 #error "Public lbug header not found"
 #endif
-#include "c_api/helpers.h"
 #include <format>
 #include <jni.h>
 #include <sstream>
@@ -549,7 +548,7 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugDatabaseInit(JNIEnv* env, 
             env->ReleaseStringUTFChars(databasePath, path);
             if (state != LbugSuccess) {
                 delete db;
-                if (auto* errorMessage = takeLastCAPIErrorMessage()) {
+                if (auto* errorMessage = lbug_get_last_error()) {
                     env->ThrowNew(J_C_Exception, errorMessage);
                     free(errorMessage);
                 } else {
@@ -652,7 +651,7 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionQuery(JNIEnv* 
         auto* queryResult = new lbug_query_result();
         if (lbug_connection_query(conn, cppQuery.c_str(), queryResult) != LbugSuccess) {
             delete queryResult;
-            if (auto* errorMessage = takeLastCAPIErrorMessage()) {
+            if (auto* errorMessage = lbug_get_last_error()) {
                 throwJNIException(env, errorMessage);
                 free(errorMessage);
                 return jobject();
@@ -677,7 +676,7 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionPrepare(JNIEnv
         auto* preparedStatement = new lbug_prepared_statement();
         if (lbug_connection_prepare(conn, cppQuery.c_str(), preparedStatement) != LbugSuccess) {
             delete preparedStatement;
-            if (auto* errorMessage = takeLastCAPIErrorMessage()) {
+            if (auto* errorMessage = lbug_get_last_error()) {
                 throwJNIException(env, errorMessage);
                 free(errorMessage);
                 return jobject();
@@ -705,7 +704,7 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionExecute(JNIEnv
         auto* queryResult = new lbug_query_result();
         if (lbug_connection_execute(conn, ps, queryResult) != LbugSuccess) {
             delete queryResult;
-            if (auto* errorMessage = takeLastCAPIErrorMessage()) {
+            if (auto* errorMessage = lbug_get_last_error()) {
                 throwJNIException(env, errorMessage);
                 free(errorMessage);
                 return jobject();
@@ -939,7 +938,7 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetNext(JNIEn
         auto* flatTuple = new lbug_flat_tuple();
         if (lbug_query_result_get_next(qr, flatTuple) != LbugSuccess) {
             delete flatTuple;
-            if (auto* errorMessage = takeLastCAPIErrorMessage()) {
+            if (auto* errorMessage = lbug_get_last_error()) {
                 throwJNIException(env, errorMessage);
                 free(errorMessage);
                 return jobject();
