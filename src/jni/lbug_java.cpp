@@ -17,9 +17,10 @@
 #else
 #error "Public lbug header not found"
 #endif
+#include <sstream>
+
 #include <format>
 #include <jni.h>
-#include <sstream>
 
 using Exception = std::exception;
 using NotImplementedException = std::runtime_error;
@@ -430,41 +431,76 @@ jstring takeOwnedCStringAsJString(JNIEnv* env, char* str) {
 
 std::string dataTypeToString(lbug_data_type_id dataType) {
     switch (dataType) {
-    case LBUG_ANY: return "ANY";
-    case LBUG_NODE: return "NODE";
-    case LBUG_REL: return "REL";
-    case LBUG_RECURSIVE_REL: return "RECURSIVE_REL";
-    case LBUG_SERIAL: return "SERIAL";
-    case LBUG_BOOL: return "BOOL";
-    case LBUG_INT64: return "INT64";
-    case LBUG_INT32: return "INT32";
-    case LBUG_INT16: return "INT16";
-    case LBUG_INT8: return "INT8";
-    case LBUG_UINT64: return "UINT64";
-    case LBUG_UINT32: return "UINT32";
-    case LBUG_UINT16: return "UINT16";
-    case LBUG_UINT8: return "UINT8";
-    case LBUG_INT128: return "INT128";
-    case LBUG_DOUBLE: return "DOUBLE";
-    case LBUG_FLOAT: return "FLOAT";
-    case LBUG_DATE: return "DATE";
-    case LBUG_TIMESTAMP: return "TIMESTAMP";
-    case LBUG_TIMESTAMP_SEC: return "TIMESTAMP_SEC";
-    case LBUG_TIMESTAMP_MS: return "TIMESTAMP_MS";
-    case LBUG_TIMESTAMP_NS: return "TIMESTAMP_NS";
-    case LBUG_TIMESTAMP_TZ: return "TIMESTAMP_TZ";
-    case LBUG_INTERVAL: return "INTERVAL";
-    case LBUG_DECIMAL: return "DECIMAL";
-    case LBUG_INTERNAL_ID: return "INTERNAL_ID";
-    case LBUG_STRING: return "STRING";
-    case LBUG_BLOB: return "BLOB";
-    case LBUG_LIST: return "LIST";
-    case LBUG_ARRAY: return "ARRAY";
-    case LBUG_STRUCT: return "STRUCT";
-    case LBUG_MAP: return "MAP";
-    case LBUG_UNION: return "UNION";
-    case LBUG_UUID: return "UUID";
-    default: return "ANY";
+    case LBUG_ANY:
+        return "ANY";
+    case LBUG_NODE:
+        return "NODE";
+    case LBUG_REL:
+        return "REL";
+    case LBUG_RECURSIVE_REL:
+        return "RECURSIVE_REL";
+    case LBUG_SERIAL:
+        return "SERIAL";
+    case LBUG_BOOL:
+        return "BOOL";
+    case LBUG_INT64:
+        return "INT64";
+    case LBUG_INT32:
+        return "INT32";
+    case LBUG_INT16:
+        return "INT16";
+    case LBUG_INT8:
+        return "INT8";
+    case LBUG_UINT64:
+        return "UINT64";
+    case LBUG_UINT32:
+        return "UINT32";
+    case LBUG_UINT16:
+        return "UINT16";
+    case LBUG_UINT8:
+        return "UINT8";
+    case LBUG_INT128:
+        return "INT128";
+    case LBUG_DOUBLE:
+        return "DOUBLE";
+    case LBUG_FLOAT:
+        return "FLOAT";
+    case LBUG_DATE:
+        return "DATE";
+    case LBUG_TIMESTAMP:
+        return "TIMESTAMP";
+    case LBUG_TIMESTAMP_SEC:
+        return "TIMESTAMP_SEC";
+    case LBUG_TIMESTAMP_MS:
+        return "TIMESTAMP_MS";
+    case LBUG_TIMESTAMP_NS:
+        return "TIMESTAMP_NS";
+    case LBUG_TIMESTAMP_TZ:
+        return "TIMESTAMP_TZ";
+    case LBUG_INTERVAL:
+        return "INTERVAL";
+    case LBUG_DECIMAL:
+        return "DECIMAL";
+    case LBUG_INTERNAL_ID:
+        return "INTERNAL_ID";
+    case LBUG_STRING:
+        return "STRING";
+    case LBUG_BLOB:
+        return "BLOB";
+    case LBUG_LIST:
+        return "LIST";
+    case LBUG_ARRAY:
+        return "ARRAY";
+    case LBUG_STRUCT:
+        return "STRUCT";
+    case LBUG_MAP:
+        return "MAP";
+    case LBUG_UNION:
+        return "UNION";
+    case LBUG_UUID:
+        return "UUID";
+    default:
+        return "ANY";
     }
 }
 
@@ -904,8 +940,10 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetQuerySumma
         lbug_query_summary querySummary;
         throwIfError(lbug_query_result_get_query_summary(qr, &querySummary),
             "Failed to fetch query summary");
-        jdouble cmpTime = static_cast<jdouble>(lbug_query_summary_get_compiling_time(&querySummary));
-        jdouble exeTime = static_cast<jdouble>(lbug_query_summary_get_execution_time(&querySummary));
+        jdouble cmpTime =
+            static_cast<jdouble>(lbug_query_summary_get_compiling_time(&querySummary));
+        jdouble exeTime =
+            static_cast<jdouble>(lbug_query_summary_get_execution_time(&querySummary));
         jobject newQSObject =
             env->NewObject(J_C_QuerySummary, J_C_QuerySummary_M_ctor, cmpTime, exeTime);
         lbug_query_summary_destroy(&querySummary);
@@ -1277,9 +1315,8 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueCreateValue(JNIEnv* e
             int64_t lower =
                 static_cast<int64_t>(callLongMethodChecked(env, val, J_C_BigInteger_M_longValue));
             jobject shifted = callObjectMethodChecked(env, val, J_C_BigInteger_M_shiftRight, 64);
-            int64_t upper =
-                static_cast<int64_t>(callLongMethodChecked(env, shifted,
-                    J_C_BigInteger_M_longValue));
+            int64_t upper = static_cast<int64_t>(
+                callLongMethodChecked(env, shifted, J_C_BigInteger_M_longValue));
             v = lbug_value_create_int128({.low = static_cast<uint64_t>(lower), .high = upper});
         } else if (env->IsInstanceOf(val, J_C_Float)) {
             jfloat value = callFloatMethodChecked(env, val, J_C_Float_M_floatValue);
@@ -1288,16 +1325,15 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueCreateValue(JNIEnv* e
             jdouble value = callDoubleMethodChecked(env, val, J_C_Double_M_doubleValue);
             v = lbug_value_create_double(static_cast<double>(value));
         } else if (env->IsInstanceOf(val, J_C_BigDecimal)) {
-            jobject normalized = callObjectMethodChecked(env, val,
-                J_C_BigDecimal_M_stripTrailingZeros);
-            jstring value = static_cast<jstring>(callObjectMethodChecked(env, normalized,
-                J_C_BigDecimal_M_toString));
+            jobject normalized =
+                callObjectMethodChecked(env, val, J_C_BigDecimal_M_stripTrailingZeros);
+            jstring value = static_cast<jstring>(
+                callObjectMethodChecked(env, normalized, J_C_BigDecimal_M_toString));
             std::string str = jstringToUtf8String(env, value);
-            auto precision =
-                static_cast<int32_t>(callIntMethodChecked(env, normalized,
-                    J_C_BigDecimal_M_precision));
-            auto scale = static_cast<int32_t>(callIntMethodChecked(env, normalized,
-                J_C_BigDecimal_M_scale));
+            auto precision = static_cast<int32_t>(
+                callIntMethodChecked(env, normalized, J_C_BigDecimal_M_precision));
+            auto scale =
+                static_cast<int32_t>(callIntMethodChecked(env, normalized, J_C_BigDecimal_M_scale));
             if (precision > JAVA_DECIMAL_PRECISION_LIMIT) {
                 throw NotImplementedException(
                     std::format("Decimal precision cannot be greater than {}"
@@ -1323,11 +1359,10 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueCreateValue(JNIEnv* e
             v = lbug_value_create_date({.days = static_cast<int32_t>(days)});
         } else if (env->IsInstanceOf(val, J_C_Instant)) {
             // TODO: Need to review this for overflow
-            int64_t seconds =
-                static_cast<int64_t>(callLongMethodChecked(env, val,
-                    J_C_LocalDate_M_getEpochSecond));
-            int64_t nano = static_cast<int64_t>(callLongMethodChecked(env, val,
-                J_C_LocalDate_M_getNano));
+            int64_t seconds = static_cast<int64_t>(
+                callLongMethodChecked(env, val, J_C_LocalDate_M_getEpochSecond));
+            int64_t nano =
+                static_cast<int64_t>(callLongMethodChecked(env, val, J_C_LocalDate_M_getNano));
 
             int64_t micro = (seconds * 1000000L) + (nano / 1000L);
             v = lbug_value_create_timestamp({.value = micro});
@@ -1399,7 +1434,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugCreateList___3Lcom_ladyb
         }
         lbug_value* listValue = nullptr;
         throwIfError(lbug_value_create_list(static_cast<uint64_t>(children.size()), children.data(),
-            &listValue), "Failed to create list value");
+                         &listValue),
+            "Failed to create list value");
         return createJavaObject(env, listValue, J_C_Value, J_C_Value_F_v_ref);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -1419,7 +1455,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugCreateList__Lcom_ladybug
         }
         lbug_value* listValue = nullptr;
         throwIfError(lbug_value_create_list(static_cast<uint64_t>(children.size()), children.data(),
-            &listValue), "Failed to create list value");
+                         &listValue),
+            "Failed to create list value");
         for (auto* child : children) {
             lbug_value_destroy(child);
         }
@@ -1468,8 +1505,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetListElement(JNIE
     return jobject();
 }
 
-JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueGetStructNumFields(JNIEnv* env,
-    jclass, jobject thisValue) {
+JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueGetStructNumFields(JNIEnv* env, jclass,
+    jobject thisValue) {
     try {
         auto* v = getValue(env, thisValue);
         uint64_t size = 0;
@@ -1686,53 +1723,47 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetValue(JNIEnv* en
         case LBUG_DATE: {
             lbug_date_t date{};
             throwIfError(lbug_value_get_date(v, &date), "Failed to read DATE value");
-            return callStaticObjectMethodChecked(
-                env,
-                J_C_LocalDate, J_C_LocalDate_M_ofEpochDay, static_cast<jlong>(date.days));
+            return callStaticObjectMethodChecked(env, J_C_LocalDate, J_C_LocalDate_M_ofEpochDay,
+                static_cast<jlong>(date.days));
         }
         case LBUG_TIMESTAMP_TZ: {
             lbug_timestamp_tz_t ts{};
             throwIfError(lbug_value_get_timestamp_tz(v, &ts), "Failed to read TIMESTAMP_TZ value");
             int64_t seconds = ts.value / 1000000L;
             int64_t nano = ts.value % 1000000L * 1000L;
-            return callStaticObjectMethodChecked(
-                env,
-                J_C_Instant, J_C_Instant_M_ofEpochSecond, seconds, nano);
+            return callStaticObjectMethodChecked(env, J_C_Instant, J_C_Instant_M_ofEpochSecond,
+                seconds, nano);
         }
         case LBUG_TIMESTAMP: {
             lbug_timestamp_t ts{};
             throwIfError(lbug_value_get_timestamp(v, &ts), "Failed to read TIMESTAMP value");
             int64_t seconds = ts.value / 1000000L;
             int64_t nano = ts.value % 1000000L * 1000L;
-            return callStaticObjectMethodChecked(
-                env,
-                J_C_Instant, J_C_Instant_M_ofEpochSecond, seconds, nano);
+            return callStaticObjectMethodChecked(env, J_C_Instant, J_C_Instant_M_ofEpochSecond,
+                seconds, nano);
         }
         case LBUG_TIMESTAMP_NS: {
             lbug_timestamp_ns_t ts{};
             throwIfError(lbug_value_get_timestamp_ns(v, &ts), "Failed to read TIMESTAMP_NS value");
             int64_t seconds = ts.value / 1000000000L;
             int64_t nano = ts.value % 1000000000L;
-            return callStaticObjectMethodChecked(
-                env,
-                J_C_Instant, J_C_Instant_M_ofEpochSecond, seconds, nano);
+            return callStaticObjectMethodChecked(env, J_C_Instant, J_C_Instant_M_ofEpochSecond,
+                seconds, nano);
         }
         case LBUG_TIMESTAMP_MS: {
             lbug_timestamp_ms_t ts{};
             throwIfError(lbug_value_get_timestamp_ms(v, &ts), "Failed to read TIMESTAMP_MS value");
             int64_t seconds = ts.value / 1000L;
             int64_t nano = ts.value % 1000L * 1000000L;
-            return callStaticObjectMethodChecked(
-                env,
-                J_C_Instant, J_C_Instant_M_ofEpochSecond, seconds, nano);
+            return callStaticObjectMethodChecked(env, J_C_Instant, J_C_Instant_M_ofEpochSecond,
+                seconds, nano);
         }
         case LBUG_TIMESTAMP_SEC: {
             lbug_timestamp_sec_t ts{};
             throwIfError(lbug_value_get_timestamp_sec(v, &ts),
                 "Failed to read TIMESTAMP_SEC value");
-            return callStaticObjectMethodChecked(
-                env,
-                J_C_Instant, J_C_Instant_M_ofEpochSecond, ts.value, 0);
+            return callStaticObjectMethodChecked(env, J_C_Instant, J_C_Instant_M_ofEpochSecond,
+                ts.value, 0);
         }
         case LBUG_INTERVAL: {
             lbug_interval_t interval{};
@@ -1746,8 +1777,7 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetValue(JNIEnv* en
         case LBUG_INTERNAL_ID: {
             lbug_internal_id_t iid{};
             throwIfError(lbug_value_get_internal_id(v, &iid), "Failed to read INTERNAL_ID value");
-            return env->NewObject(
-                J_C_InternalID, J_C_InternalID_M_init, iid.table_id, iid.offset);
+            return env->NewObject(J_C_InternalID, J_C_InternalID_M_init, iid.table_id, iid.offset);
         }
         case LBUG_UUID: {
             char* str = nullptr;
@@ -1842,8 +1872,8 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugNodeValGetPropertySize(JNI
     try {
         auto* nv = getValue(env, thisNV);
         uint64_t size = 0;
-        throwIfError(
-            lbug_node_val_get_property_size(nv, &size), "Failed to get node property size");
+        throwIfError(lbug_node_val_get_property_size(nv, &size),
+            "Failed to get node property size");
         return static_cast<jlong>(size);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -1876,8 +1906,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugNodeValGetPropertyValueA
     try {
         auto* nv = getValue(env, thisNV);
         auto* propertyValue = new lbug_value();
-        if (lbug_node_val_get_property_value_at(
-                nv, static_cast<uint64_t>(index), propertyValue) != LbugSuccess) {
+        if (lbug_node_val_get_property_value_at(nv, static_cast<uint64_t>(index), propertyValue) !=
+            LbugSuccess) {
             delete propertyValue;
             return nullptr;
         }
@@ -1996,8 +2026,7 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugRelValGetPropertySize(JNIE
     try {
         auto* rv = getValue(env, thisRV);
         uint64_t size = 0;
-        throwIfError(
-            lbug_rel_val_get_property_size(rv, &size), "Failed to get rel property size");
+        throwIfError(lbug_rel_val_get_property_size(rv, &size), "Failed to get rel property size");
         return static_cast<jlong>(size);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -2125,9 +2154,8 @@ JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugValueGetStructFieldName(
     try {
         auto* sv = getValue(env, thisSV);
         char* name = nullptr;
-        if (index < 0 ||
-            lbug_value_get_struct_field_name(sv, static_cast<uint64_t>(index), &name) !=
-                LbugSuccess) {
+        if (index < 0 || lbug_value_get_struct_field_name(sv, static_cast<uint64_t>(index),
+                             &name) != LbugSuccess) {
             return nullptr;
         }
         return takeOwnedCStringAsJString(env, name);
