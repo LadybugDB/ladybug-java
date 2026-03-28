@@ -30,6 +30,7 @@ repositories {
 dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 if (System.getenv('SKIP_CMAKE_BUILD') != 'true') {
@@ -109,14 +110,10 @@ signing {
     }
 }
 
-task cmake {
-    doLast {
-        exec {
-            workingDir '../..'
-            commandLine 'make', 'java'
-            environment NUM_THREADS: Runtime.getRuntime().availableProcessors()
-        }
-    }
+task cmake(type: Exec) {
+    workingDir '../..'
+    commandLine 'make', 'java'
+    environment NUM_THREADS: Runtime.getRuntime().availableProcessors()
 }
 
 task copyNativeLibs(type: Copy) {
