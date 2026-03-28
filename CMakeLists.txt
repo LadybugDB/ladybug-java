@@ -33,7 +33,10 @@ if(LBUG_API_USE_PRECOMPILED_LIB)
     get_filename_component(LBUG_API_PRECOMPILED_LIB_DIR "${LBUG_API_PRECOMPILED_LIB_PATH}" DIRECTORY)
     get_filename_component(LBUG_API_PRECOMPILED_PREFIX "${LBUG_API_PRECOMPILED_LIB_DIR}" DIRECTORY)
     set(LBUG_API_PRECOMPILED_INCLUDE_DIR "${LBUG_API_PRECOMPILED_PREFIX}/include")
-    target_include_directories(lbug_java_native PRIVATE ${LBUG_API_PRECOMPILED_INCLUDE_DIR})
+    target_include_directories(lbug_java_native PRIVATE
+        ${LBUG_API_PRECOMPILED_LIB_DIR}
+        ${LBUG_API_PRECOMPILED_INCLUDE_DIR}
+    )
     target_link_libraries(lbug_java_native PRIVATE lbug_native_header "${LBUG_API_PRECOMPILED_LIB_PATH}")
 else()
     target_link_libraries(lbug_java_native PRIVATE lbug_native_header lbug)
