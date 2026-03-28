@@ -19,7 +19,7 @@ public class LbugStruct implements AutoCloseable {
      * @param value the value to construct the struct from
      */
     public LbugStruct(Value value) {
-        structVal = value;
+        structVal = value == null ? null : value.clone();
     }
 
     /**
@@ -78,7 +78,7 @@ public class LbugStruct implements AutoCloseable {
         if (structVal == null) {
             return 0;
         }
-        return Native.lbugValueGetListSize(structVal);
+        return Native.lbugValueGetStructNumFields(structVal);
     }
 
     /**
@@ -137,7 +137,7 @@ public class LbugStruct implements AutoCloseable {
         if (index < 0 || index >= getNumFields()) {
             return null;
         }
-        return Native.lbugValueGetListElement(structVal, index);
+        return Native.lbugValueGetStructFieldValue(structVal, index);
     }
 
     /**
@@ -165,6 +165,8 @@ public class LbugStruct implements AutoCloseable {
      * @throws RuntimeException
      */
     public void close() {
-        structVal.close();
+        if (structVal != null && !structVal.destroyed) {
+            structVal.close();
+        }
     }
 }

@@ -16,7 +16,7 @@ public class LbugMap implements AutoCloseable {
      * @param value the value to construct the map from
      */
     public LbugMap(Value value) {
-        mapVal = value;
+        mapVal = value == null ? null : value.clone();
     }
 
     /**
@@ -42,10 +42,7 @@ public class LbugMap implements AutoCloseable {
         if (index < 0 || index >= getNumFields()) {
             return null;
         }
-        Value structValue = Native.lbugValueGetListElement(mapVal, index);
-        Value keyOrValue = new LbugList(structValue).getListElement(isKey ? 0 : 1);
-        structValue.close();
-        return keyOrValue;
+        return isKey ? Native.lbugValueGetMapKey(mapVal, index) : Native.lbugValueGetMapValue(mapVal, index);
     }
 
     /**
@@ -56,7 +53,7 @@ public class LbugMap implements AutoCloseable {
         if (mapVal == null) {
             return 0;
         }
-        return Native.lbugValueGetListSize(mapVal);
+        return Native.lbugValueGetMapSize(mapVal);
     }
 
     /**
@@ -87,6 +84,8 @@ public class LbugMap implements AutoCloseable {
      * @throws RuntimeException
      */
     public void close() {
-        mapVal.close();
+        if (mapVal != null && !mapVal.destroyed) {
+            mapVal.close();
+        }
     }
 }

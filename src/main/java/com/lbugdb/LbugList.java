@@ -16,7 +16,7 @@ public class LbugList implements AutoCloseable {
      * @param value the value to construct the list from
      */
     public LbugList(Value value) {
-        listVal = value;
+        listVal = value == null ? null : value.clone();
     }
 
     /**
@@ -82,6 +82,8 @@ public class LbugList implements AutoCloseable {
      * @throws RuntimeException
      */
     public void close() {
-        listVal.close();
+        if (listVal != null && !listVal.destroyed) {
+            listVal.close();
+        }
     }
 }
