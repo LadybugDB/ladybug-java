@@ -17,6 +17,7 @@
 #else
 #error "Public lbug header not found"
 #endif
+#include "c_api/helpers.h"
 #include <format>
 #include <jni.h>
 #include <sstream>
@@ -99,6 +100,7 @@ static jmethodID J_C_Double_M_doubleValue;
 static jclass J_C_BigDecimal;
 static jmethodID J_C_BigDecimal_M_init;
 static jmethodID J_C_BigDecimal_M_toString;
+static jmethodID J_C_BigDecimal_M_stripTrailingZeros;
 static jmethodID J_C_BigDecimal_M_precision;
 static jmethodID J_C_BigDecimal_M_scale;
 // LocalDate
@@ -138,6 +140,7 @@ static jmethodID J_C_UUID_M_init;
 static jmethodID J_C_UUID_M_fromString;
 static jmethodID J_C_UUID_M_getMostSignificantBits;
 static jmethodID J_C_UUID_M_getLeastSignificantBits;
+static jmethodID J_C_UUID_M_toString;
 // Connection
 static jclass J_C_Connection;
 static jfieldID J_C_Connection_F_conn_ref;
@@ -157,14 +160,108 @@ static void throwJNIException(JNIEnv* env, const char* message) {
     env->ThrowNew(exClass, message);
 }
 
+template<typename... Args>
+static jobject callObjectMethodChecked(JNIEnv* env, jobject object, jmethodID method,
+    Args... args) {
+    auto result = env->CallObjectMethod(object, method, args...);
+    if (env->ExceptionCheck()) {
+        throw NotImplementedException("Java exception raised during JNI object call");
+    }
+    return result;
+}
+
+template<typename... Args>
+static jobject callStaticObjectMethodChecked(JNIEnv* env, jclass objectClass, jmethodID method,
+    Args... args) {
+    auto result = env->CallStaticObjectMethod(objectClass, method, args...);
+    if (env->ExceptionCheck()) {
+        throw NotImplementedException("Java exception raised during JNI static object call");
+    }
+    return result;
+}
+
+template<typename... Args>
+static jboolean callBooleanMethodChecked(JNIEnv* env, jobject object, jmethodID method,
+    Args... args) {
+    auto result = env->CallBooleanMethod(object, method, args...);
+    if (env->ExceptionCheck()) {
+        throw NotImplementedException("Java exception raised during JNI boolean call");
+    }
+    return result;
+}
+
+template<typename... Args>
+static jbyte callByteMethodChecked(JNIEnv* env, jobject object, jmethodID method, Args... args) {
+    auto result = env->CallByteMethod(object, method, args...);
+    if (env->ExceptionCheck()) {
+        throw NotImplementedException("Java exception raised during JNI byte call");
+    }
+    return result;
+}
+
+template<typename... Args>
+static jshort callShortMethodChecked(JNIEnv* env, jobject object, jmethodID method, Args... args) {
+    auto result = env->CallShortMethod(object, method, args...);
+    if (env->ExceptionCheck()) {
+        throw NotImplementedException("Java exception raised during JNI short call");
+    }
+    return result;
+}
+
+template<typename... Args>
+static jint callIntMethodChecked(JNIEnv* env, jobject object, jmethodID method, Args... args) {
+    auto result = env->CallIntMethod(object, method, args...);
+    if (env->ExceptionCheck()) {
+        throw NotImplementedException("Java exception raised during JNI int call");
+    }
+    return result;
+}
+
+template<typename... Args>
+static jlong callLongMethodChecked(JNIEnv* env, jobject object, jmethodID method, Args... args) {
+    auto result = env->CallLongMethod(object, method, args...);
+    if (env->ExceptionCheck()) {
+        throw NotImplementedException("Java exception raised during JNI long call");
+    }
+    return result;
+}
+
+template<typename... Args>
+static jfloat callFloatMethodChecked(JNIEnv* env, jobject object, jmethodID method, Args... args) {
+    auto result = env->CallFloatMethod(object, method, args...);
+    if (env->ExceptionCheck()) {
+        throw NotImplementedException("Java exception raised during JNI float call");
+    }
+    return result;
+}
+
+template<typename... Args>
+static jdouble callDoubleMethodChecked(JNIEnv* env, jobject object, jmethodID method,
+    Args... args) {
+    auto result = env->CallDoubleMethod(object, method, args...);
+    if (env->ExceptionCheck()) {
+        throw NotImplementedException("Java exception raised during JNI double call");
+    }
+    return result;
+}
+
 static std::string jstringToUtf8String(JNIEnv* env, jstring value) {
+    if (value == nullptr) {
+        return "";
+    }
+    auto* charset = env->NewStringUTF("UTF-8");
+    if (charset == nullptr) {
+        throw NotImplementedException("Failed to create UTF-8 charset string");
+    }
     jbyteArray byteArr =
-        (jbyteArray)env->CallObjectMethod(value, J_C_String_M_getBytes, env->NewStringUTF("UTF-8"));
+        (jbyteArray)callObjectMethodChecked(env, value, J_C_String_M_getBytes, charset);
+    env->DeleteLocalRef(charset);
     size_t length = env->GetArrayLength(byteArr);
     jbyte* bytes = env->GetByteArrayElements(byteArr, nullptr);
-    std::string ret = std::string((char*)bytes, length);
-    env->ReleaseByteArrayElements(byteArr, bytes, 0);
-    return ret;
+    std::string result((char*)bytes, length);
+    env->ReleaseByteArrayElements(byteArr, bytes, JNI_ABORT);
+    env->DeleteLocalRef(byteArr);
+    return result;
 }
 
 static jstring utf8StringToJstring(JNIEnv* env, std::string str) {
@@ -374,18 +471,17 @@ std::string dataTypeToString(lbug_data_type_id dataType) {
 
 void bindJavaParamsToPreparedStatement(JNIEnv* env, lbug_prepared_statement* preparedStatement,
     jobject javaMap) {
-    jobject set = env->CallObjectMethod(javaMap, J_C_Map_M_entrySet);
-    jobject iter = env->CallObjectMethod(set, J_C_Set_M_iterator);
-    while (env->CallBooleanMethod(iter, J_C_Iterator_M_hasNext)) {
-        jobject entry = env->CallObjectMethod(iter, J_C_Iterator_M_next);
-        jstring key = (jstring)env->CallObjectMethod(entry, J_C_Map$Entry_M_getKey);
-        jobject value = env->CallObjectMethod(entry, J_C_Map$Entry_M_getValue);
+    jobject set = callObjectMethodChecked(env, javaMap, J_C_Map_M_entrySet);
+    jobject iter = callObjectMethodChecked(env, set, J_C_Set_M_iterator);
+    while (callBooleanMethodChecked(env, iter, J_C_Iterator_M_hasNext)) {
+        jobject entry = callObjectMethodChecked(env, iter, J_C_Iterator_M_next);
+        jstring key = (jstring)callObjectMethodChecked(env, entry, J_C_Map$Entry_M_getKey);
+        jobject value = callObjectMethodChecked(env, entry, J_C_Map$Entry_M_getValue);
         std::string keyStr = jstringToUtf8String(env, key);
         auto* clonedValue = lbug_value_clone(getValue(env, value));
         auto state =
             lbug_prepared_statement_bind_value(preparedStatement, keyStr.c_str(), clonedValue);
         lbug_value_destroy(clonedValue);
-        free(clonedValue);
         throwIfError(state, "Failed to bind prepared statement parameter");
         env->DeleteLocalRef(entry);
         env->DeleteLocalRef(key);
@@ -432,6 +528,13 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugDatabaseInit(JNIEnv* env, 
         systemConfig.enable_compression = enableCompression;
         systemConfig.read_only = readOnly;
         if (maxDbSize != 0) {
+            auto unsignedMaxDbSize = static_cast<uint64_t>(maxDbSize);
+            if ((unsignedMaxDbSize & (unsignedMaxDbSize - 1)) != 0) {
+                env->ReleaseStringUTFChars(databasePath, path);
+                env->ThrowNew(J_C_Exception,
+                    "Buffer manager exception: The given max db size should be a power of 2.");
+                return 0;
+            }
             systemConfig.max_db_size = static_cast<uint64_t>(maxDbSize);
         }
         systemConfig.auto_checkpoint = autoCheckpoint;
@@ -446,7 +549,12 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugDatabaseInit(JNIEnv* env, 
             env->ReleaseStringUTFChars(databasePath, path);
             if (state != LbugSuccess) {
                 delete db;
-                env->ThrowNew(J_C_Exception, "Failed to initialize database");
+                if (auto* errorMessage = takeLastCAPIErrorMessage()) {
+                    env->ThrowNew(J_C_Exception, errorMessage);
+                    free(errorMessage);
+                } else {
+                    env->ThrowNew(J_C_Exception, "Failed to initialize database");
+                }
                 return 0;
             }
             return static_cast<jlong>(reinterpret_cast<uint64_t>(db));
@@ -542,8 +650,16 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionQuery(JNIEnv* 
         auto* conn = getConnection(env, thisConn);
         std::string cppQuery = jstringToUtf8String(env, query);
         auto* queryResult = new lbug_query_result();
-        throwIfError(lbug_connection_query(conn, cppQuery.c_str(), queryResult),
-            "Failed to execute query");
+        if (lbug_connection_query(conn, cppQuery.c_str(), queryResult) != LbugSuccess) {
+            delete queryResult;
+            if (auto* errorMessage = takeLastCAPIErrorMessage()) {
+                throwJNIException(env, errorMessage);
+                free(errorMessage);
+                return jobject();
+            }
+            throwJNIException(env, "Failed to execute query");
+            return jobject();
+        }
         return createJavaObject(env, queryResult, J_C_QueryResult, J_C_QueryResult_F_qr_ref);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -559,8 +675,16 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionPrepare(JNIEnv
         auto* conn = getConnection(env, thisConn);
         std::string cppQuery = jstringToUtf8String(env, query);
         auto* preparedStatement = new lbug_prepared_statement();
-        throwIfError(lbug_connection_prepare(conn, cppQuery.c_str(), preparedStatement),
-            "Failed to prepare statement");
+        if (lbug_connection_prepare(conn, cppQuery.c_str(), preparedStatement) != LbugSuccess) {
+            delete preparedStatement;
+            if (auto* errorMessage = takeLastCAPIErrorMessage()) {
+                throwJNIException(env, errorMessage);
+                free(errorMessage);
+                return jobject();
+            }
+            throwJNIException(env, "Failed to prepare statement");
+            return jobject();
+        }
         jobject ret = createJavaObject(env, preparedStatement, J_C_PreparedStatement,
             J_C_PreparedStatement_F_ps_ref);
         return ret;
@@ -579,8 +703,16 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionExecute(JNIEnv
         auto* ps = getPreparedStatement(env, preStm);
         bindJavaParamsToPreparedStatement(env, ps, paramMap);
         auto* queryResult = new lbug_query_result();
-        throwIfError(lbug_connection_execute(conn, ps, queryResult),
-            "Failed to execute prepared statement");
+        if (lbug_connection_execute(conn, ps, queryResult) != LbugSuccess) {
+            delete queryResult;
+            if (auto* errorMessage = takeLastCAPIErrorMessage()) {
+                throwJNIException(env, errorMessage);
+                free(errorMessage);
+                return jobject();
+            }
+            throwJNIException(env, "Failed to execute prepared statement");
+            return jobject();
+        }
         jobject ret = createJavaObject(env, queryResult, J_C_QueryResult, J_C_QueryResult_F_qr_ref);
         return ret;
     } catch (const Exception& e) {
@@ -805,7 +937,16 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetNext(JNIEn
     try {
         auto* qr = getQueryResult(env, thisQR);
         auto* flatTuple = new lbug_flat_tuple();
-        throwIfError(lbug_query_result_get_next(qr, flatTuple), "Failed to fetch next tuple");
+        if (lbug_query_result_get_next(qr, flatTuple) != LbugSuccess) {
+            delete flatTuple;
+            if (auto* errorMessage = takeLastCAPIErrorMessage()) {
+                throwJNIException(env, errorMessage);
+                free(errorMessage);
+                return jobject();
+            }
+            throwJNIException(env, "Failed to fetch next tuple");
+            return jobject();
+        }
         jobject ret = createJavaObject(env, flatTuple, J_C_FlatTuple, J_C_FlatTuple_F_ft_ref);
         env->SetBooleanField(ret, J_C_FlatTuple_F_isOwnedByCPP, static_cast<jboolean>(true));
         return ret;
@@ -1119,40 +1260,45 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueCreateValue(JNIEnv* e
     try {
         lbug_value* v = nullptr;
         if (env->IsInstanceOf(val, J_C_Boolean)) {
-            jboolean value = env->CallBooleanMethod(val, J_C_Boolean_M_booleanValue);
+            jboolean value = callBooleanMethodChecked(env, val, J_C_Boolean_M_booleanValue);
             v = lbug_value_create_bool(static_cast<bool>(value));
         } else if (env->IsInstanceOf(val, J_C_Byte)) {
-            jbyte value = env->CallByteMethod(val, J_C_Byte_M_byteValue);
+            jbyte value = callByteMethodChecked(env, val, J_C_Byte_M_byteValue);
             v = lbug_value_create_int8(static_cast<int8_t>(value));
         } else if (env->IsInstanceOf(val, J_C_Short)) {
-            jshort value = env->CallShortMethod(val, J_C_Short_M_shortValue);
+            jshort value = callShortMethodChecked(env, val, J_C_Short_M_shortValue);
             v = lbug_value_create_int16(static_cast<int16_t>(value));
         } else if (env->IsInstanceOf(val, J_C_Integer)) {
-            jint value = env->CallIntMethod(val, J_C_Integer_M_intValue);
+            jint value = callIntMethodChecked(env, val, J_C_Integer_M_intValue);
             v = lbug_value_create_int32(static_cast<int32_t>(value));
         } else if (env->IsInstanceOf(val, J_C_Long)) {
-            jlong value = env->CallLongMethod(val, J_C_Long_M_longValue);
+            jlong value = callLongMethodChecked(env, val, J_C_Long_M_longValue);
             v = lbug_value_create_int64(static_cast<int64_t>(value));
         } else if (env->IsInstanceOf(val, J_C_BigInteger)) {
             int64_t lower =
-                static_cast<int64_t>(env->CallLongMethod(val, J_C_BigInteger_M_longValue));
-            jobject shifted = env->CallObjectMethod(val, J_C_BigInteger_M_shiftRight, 64);
+                static_cast<int64_t>(callLongMethodChecked(env, val, J_C_BigInteger_M_longValue));
+            jobject shifted = callObjectMethodChecked(env, val, J_C_BigInteger_M_shiftRight, 64);
             int64_t upper =
-                static_cast<int64_t>(env->CallLongMethod(shifted, J_C_BigInteger_M_longValue));
+                static_cast<int64_t>(callLongMethodChecked(env, shifted,
+                    J_C_BigInteger_M_longValue));
             v = lbug_value_create_int128({.low = static_cast<uint64_t>(lower), .high = upper});
         } else if (env->IsInstanceOf(val, J_C_Float)) {
-            jfloat value = env->CallFloatMethod(val, J_C_Float_M_floatValue);
+            jfloat value = callFloatMethodChecked(env, val, J_C_Float_M_floatValue);
             v = lbug_value_create_float(static_cast<float>(value));
         } else if (env->IsInstanceOf(val, J_C_Double)) {
-            jdouble value = env->CallDoubleMethod(val, J_C_Double_M_doubleValue);
+            jdouble value = callDoubleMethodChecked(env, val, J_C_Double_M_doubleValue);
             v = lbug_value_create_double(static_cast<double>(value));
         } else if (env->IsInstanceOf(val, J_C_BigDecimal)) {
-            jstring value =
-                static_cast<jstring>(env->CallObjectMethod(val, J_C_BigDecimal_M_toString));
+            jobject normalized = callObjectMethodChecked(env, val,
+                J_C_BigDecimal_M_stripTrailingZeros);
+            jstring value = static_cast<jstring>(callObjectMethodChecked(env, normalized,
+                J_C_BigDecimal_M_toString));
             std::string str = jstringToUtf8String(env, value);
             auto precision =
-                static_cast<int32_t>(env->CallIntMethod(val, J_C_BigDecimal_M_precision));
-            auto scale = static_cast<int32_t>(env->CallIntMethod(val, J_C_BigDecimal_M_scale));
+                static_cast<int32_t>(callIntMethodChecked(env, normalized,
+                    J_C_BigDecimal_M_precision));
+            auto scale = static_cast<int32_t>(callIntMethodChecked(env, normalized,
+                J_C_BigDecimal_M_scale));
             if (precision > JAVA_DECIMAL_PRECISION_LIMIT) {
                 throw NotImplementedException(
                     std::format("Decimal precision cannot be greater than {}"
@@ -1168,30 +1314,26 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueCreateValue(JNIEnv* e
         } else if (env->IsInstanceOf(val, J_C_InternalID)) {
             v = lbug_value_create_internal_id(getInternalID(env, val));
         } else if (env->IsInstanceOf(val, J_C_UUID)) {
-            auto upper =
-                static_cast<int64_t>(env->CallLongMethod(val, J_C_UUID_M_getMostSignificantBits));
-            auto lower =
-                static_cast<uint64_t>(env->CallLongMethod(val, J_C_UUID_M_getLeastSignificantBits));
-            auto uuidHigh = static_cast<int64_t>(static_cast<uint64_t>(upper) ^ (uint64_t{1} << 63));
-            lbug_int128_t uuidValue{.low = lower, .high = uuidHigh};
-            char* uuidStr = nullptr;
-            throwIfError(lbug_int128_t_to_string(uuidValue, &uuidStr), "Failed to convert UUID");
-            v = lbug_value_create_uuid(uuidStr);
-            lbug_destroy_string(uuidStr);
+            jstring uuid =
+                static_cast<jstring>(callObjectMethodChecked(env, val, J_C_UUID_M_toString));
+            std::string uuidString = jstringToUtf8String(env, uuid);
+            v = lbug_value_create_uuid(uuidString.c_str());
         } else if (env->IsInstanceOf(val, J_C_LocalDate)) {
             int64_t days =
-                static_cast<int64_t>(env->CallLongMethod(val, J_C_LocalDate_M_toEpochDay));
+                static_cast<int64_t>(callLongMethodChecked(env, val, J_C_LocalDate_M_toEpochDay));
             v = lbug_value_create_date({.days = static_cast<int32_t>(days)});
         } else if (env->IsInstanceOf(val, J_C_Instant)) {
             // TODO: Need to review this for overflow
             int64_t seconds =
-                static_cast<int64_t>(env->CallLongMethod(val, J_C_LocalDate_M_getEpochSecond));
-            int64_t nano = static_cast<int64_t>(env->CallLongMethod(val, J_C_LocalDate_M_getNano));
+                static_cast<int64_t>(callLongMethodChecked(env, val,
+                    J_C_LocalDate_M_getEpochSecond));
+            int64_t nano = static_cast<int64_t>(callLongMethodChecked(env, val,
+                J_C_LocalDate_M_getNano));
 
             int64_t micro = (seconds * 1000000L) + (nano / 1000L);
             v = lbug_value_create_timestamp({.value = micro});
         } else if (env->IsInstanceOf(val, J_C_Duration)) {
-            auto milis = env->CallLongMethod(val, J_C_Duration_M_toMillis);
+            auto milis = callLongMethodChecked(env, val, J_C_Duration_M_toMillis);
             v = lbug_value_create_interval({.months = 0, .days = 0, .micros = milis * 1000L});
         } else {
             throwJNIException(env, "Type of value is not supported in value_create_value");
@@ -1238,7 +1380,6 @@ JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugValueDestroy(JNIEnv* env, j
     try {
         auto* v = getValue(env, thisValue);
         lbug_value_destroy(v);
-        free(v);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1282,7 +1423,6 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugCreateList__Lcom_ladybug
             &listValue), "Failed to create list value");
         for (auto* child : children) {
             lbug_value_destroy(child);
-            free(child);
         }
         return createJavaObject(env, listValue, J_C_Value, J_C_Value_F_v_ref);
     } catch (const Exception& e) {
@@ -1455,7 +1595,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetValue(JNIEnv* en
         case LBUG_DATE: {
             lbug_date_t date{};
             throwIfError(lbug_value_get_date(v, &date), "Failed to read DATE value");
-            return env->CallStaticObjectMethod(
+            return callStaticObjectMethodChecked(
+                env,
                 J_C_LocalDate, J_C_LocalDate_M_ofEpochDay, static_cast<jlong>(date.days));
         }
         case LBUG_TIMESTAMP_TZ: {
@@ -1463,7 +1604,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetValue(JNIEnv* en
             throwIfError(lbug_value_get_timestamp_tz(v, &ts), "Failed to read TIMESTAMP_TZ value");
             int64_t seconds = ts.value / 1000000L;
             int64_t nano = ts.value % 1000000L * 1000L;
-            return env->CallStaticObjectMethod(
+            return callStaticObjectMethodChecked(
+                env,
                 J_C_Instant, J_C_Instant_M_ofEpochSecond, seconds, nano);
         }
         case LBUG_TIMESTAMP: {
@@ -1471,7 +1613,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetValue(JNIEnv* en
             throwIfError(lbug_value_get_timestamp(v, &ts), "Failed to read TIMESTAMP value");
             int64_t seconds = ts.value / 1000000L;
             int64_t nano = ts.value % 1000000L * 1000L;
-            return env->CallStaticObjectMethod(
+            return callStaticObjectMethodChecked(
+                env,
                 J_C_Instant, J_C_Instant_M_ofEpochSecond, seconds, nano);
         }
         case LBUG_TIMESTAMP_NS: {
@@ -1479,7 +1622,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetValue(JNIEnv* en
             throwIfError(lbug_value_get_timestamp_ns(v, &ts), "Failed to read TIMESTAMP_NS value");
             int64_t seconds = ts.value / 1000000000L;
             int64_t nano = ts.value % 1000000000L;
-            return env->CallStaticObjectMethod(
+            return callStaticObjectMethodChecked(
+                env,
                 J_C_Instant, J_C_Instant_M_ofEpochSecond, seconds, nano);
         }
         case LBUG_TIMESTAMP_MS: {
@@ -1487,14 +1631,16 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetValue(JNIEnv* en
             throwIfError(lbug_value_get_timestamp_ms(v, &ts), "Failed to read TIMESTAMP_MS value");
             int64_t seconds = ts.value / 1000L;
             int64_t nano = ts.value % 1000L * 1000000L;
-            return env->CallStaticObjectMethod(
+            return callStaticObjectMethodChecked(
+                env,
                 J_C_Instant, J_C_Instant_M_ofEpochSecond, seconds, nano);
         }
         case LBUG_TIMESTAMP_SEC: {
             lbug_timestamp_sec_t ts{};
             throwIfError(lbug_value_get_timestamp_sec(v, &ts),
                 "Failed to read TIMESTAMP_SEC value");
-            return env->CallStaticObjectMethod(
+            return callStaticObjectMethodChecked(
+                env,
                 J_C_Instant, J_C_Instant_M_ofEpochSecond, ts.value, 0);
         }
         case LBUG_INTERVAL: {
@@ -1503,7 +1649,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetValue(JNIEnv* en
             double seconds = 0;
             lbug_interval_to_difftime(interval, &seconds);
             auto millis = static_cast<jlong>(seconds * 1000);
-            return env->CallStaticObjectMethod(J_C_Duration, J_C_Duration_M_ofMillis, millis);
+            return callStaticObjectMethodChecked(env, J_C_Duration, J_C_Duration_M_ofMillis,
+                millis);
         }
         case LBUG_INTERNAL_ID: {
             lbug_internal_id_t iid{};
@@ -1516,7 +1663,7 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetValue(JNIEnv* en
             throwIfError(lbug_value_get_uuid(v, &str), "Failed to read UUID value");
             jstring uuid = env->NewStringUTF(str);
             lbug_destroy_string(str);
-            return env->CallStaticObjectMethod(J_C_UUID, J_C_UUID_M_fromString, uuid);
+            return callStaticObjectMethodChecked(env, J_C_UUID, J_C_UUID_M_fromString, uuid);
         }
         case LBUG_STRING: {
             char* str = nullptr;
@@ -2084,6 +2231,8 @@ void initGlobalMethodRef(JNIEnv* env) {
         J_C_UUID_M_getLeastSignificantBits =
             env->GetMethodID(J_C_UUID, "getLeastSignificantBits", "()J");
 
+        J_C_UUID_M_toString = env->GetMethodID(J_C_UUID, "toString", "()Ljava/lang/String;");
+
         J_C_Boolean_M_booleanValue = env->GetMethodID(J_C_Boolean, "booleanValue", "()Z");
 
         J_C_Byte_M_byteValue = env->GetMethodID(J_C_Byte, "byteValue", "()B");
@@ -2100,6 +2249,9 @@ void initGlobalMethodRef(JNIEnv* env) {
 
         J_C_BigDecimal_M_toString =
             env->GetMethodID(J_C_BigDecimal, "toString", "()Ljava/lang/String;");
+
+        J_C_BigDecimal_M_stripTrailingZeros =
+            env->GetMethodID(J_C_BigDecimal, "stripTrailingZeros", "()Ljava/math/BigDecimal;");
 
         J_C_BigDecimal_M_precision = env->GetMethodID(J_C_BigDecimal, "precision", "()I");
 
