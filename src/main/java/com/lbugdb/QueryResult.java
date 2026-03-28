@@ -65,7 +65,8 @@ public class QueryResult implements AutoCloseable {
      */
     public String getErrorMessage() {
         checkNotDestroyed();
-        return Native.lbugQueryResultGetErrorMessage(this);
+        String message = Native.lbugQueryResultGetErrorMessage(this);
+        return message == null ? "" : message;
     }
 
     /**

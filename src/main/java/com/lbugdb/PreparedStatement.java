@@ -57,7 +57,8 @@ public class PreparedStatement implements AutoCloseable {
      */
     public String getErrorMessage() {
         checkNotDestroyed();
-        return Native.lbugPreparedStatementGetErrorMessage(this);
+        String message = Native.lbugPreparedStatementGetErrorMessage(this);
+        return message == null ? "" : message;
     }
 
 }
