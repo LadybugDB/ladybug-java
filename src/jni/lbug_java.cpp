@@ -1469,6 +1469,98 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetListElement(JNIE
     return jobject();
 }
 
+JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueGetStructNumFields(JNIEnv* env,
+    jclass, jobject thisValue) {
+    try {
+        auto* v = getValue(env, thisValue);
+        uint64_t size = 0;
+        throwIfError(lbug_value_get_struct_num_fields(v, &size),
+            "Failed to get struct field count");
+        return static_cast<jlong>(size);
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
+    return jlong();
+}
+
+JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetStructFieldValue(JNIEnv* env,
+    jclass, jobject thisValue, jlong index) {
+    try {
+        auto* v = getValue(env, thisValue);
+        auto* elementValue = new lbug_value();
+        if (lbug_value_get_struct_field_value(v, static_cast<uint64_t>(index), elementValue) !=
+            LbugSuccess) {
+            delete elementValue;
+            return nullptr;
+        }
+        jobject element = createJavaObject(env, elementValue, J_C_Value, J_C_Value_F_v_ref);
+        env->SetBooleanField(element, J_C_Value_F_isOwnedByCPP, static_cast<jboolean>(true));
+        return element;
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
+    return jobject();
+}
+
+JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueGetMapSize(JNIEnv* env, jclass,
+    jobject thisValue) {
+    try {
+        auto* v = getValue(env, thisValue);
+        uint64_t size = 0;
+        throwIfError(lbug_value_get_map_size(v, &size), "Failed to get map size");
+        return static_cast<jlong>(size);
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
+    return jlong();
+}
+
+JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetMapKey(JNIEnv* env, jclass,
+    jobject thisValue, jlong index) {
+    try {
+        auto* v = getValue(env, thisValue);
+        auto* keyValue = new lbug_value();
+        if (lbug_value_get_map_key(v, static_cast<uint64_t>(index), keyValue) != LbugSuccess) {
+            delete keyValue;
+            return nullptr;
+        }
+        jobject key = createJavaObject(env, keyValue, J_C_Value, J_C_Value_F_v_ref);
+        env->SetBooleanField(key, J_C_Value_F_isOwnedByCPP, static_cast<jboolean>(true));
+        return key;
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
+    return jobject();
+}
+
+JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetMapValue(JNIEnv* env, jclass,
+    jobject thisValue, jlong index) {
+    try {
+        auto* v = getValue(env, thisValue);
+        auto* value = new lbug_value();
+        if (lbug_value_get_map_value(v, static_cast<uint64_t>(index), value) != LbugSuccess) {
+            delete value;
+            return nullptr;
+        }
+        jobject result = createJavaObject(env, value, J_C_Value, J_C_Value_F_v_ref);
+        env->SetBooleanField(result, J_C_Value_F_isOwnedByCPP, static_cast<jboolean>(true));
+        return result;
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
+    return jobject();
+}
+
 JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetDataType(JNIEnv* env, jclass,
     jobject thisValue) {
     try {

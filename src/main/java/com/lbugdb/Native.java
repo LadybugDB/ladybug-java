@@ -194,6 +194,16 @@ public class Native {
 
     protected static native Value lbugValueGetListElement(Value value, long index);
 
+    protected static native long lbugValueGetStructNumFields(Value value);
+
+    protected static native Value lbugValueGetStructFieldValue(Value value, long index);
+
+    protected static native long lbugValueGetMapSize(Value value);
+
+    protected static native Value lbugValueGetMapKey(Value value, long index);
+
+    protected static native Value lbugValueGetMapValue(Value value, long index);
+
     protected static native DataType lbugValueGetDataType(Value value);
 
     protected static native <T> T lbugValueGetValue(Value value);
