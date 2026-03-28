@@ -1,4 +1,5 @@
 #include <unordered_map>
+#include <stdexcept>
 
 #ifdef _WIN32
 // Do nothing on Windows
@@ -10,17 +11,26 @@
 #include <vector>
 
 #include "com_ladybugdb_Native.h"
-#include "common/constants.h"
-#include "common/exception/exception.h"
-#include "common/exception/not_implemented.h"
-#include "function/cast/functions/cast_string_non_nested_functions.h"
+#if __has_include("lbug.h")
+#include "lbug.h"
+#else
 #include "main/lbug.h"
+#endif
 #include <format>
 #include <jni.h>
 
 using namespace lbug::main;
 using namespace lbug::common;
 using namespace lbug::processor;
+
+using Exception = std::exception;
+using NotImplementedException = std::runtime_error;
+
+namespace {
+constexpr auto JAVA_DECIMAL_PRECISION_LIMIT = 38;
+constexpr char JAVA_MAP_KEY_FIELD_NAME[] = "KEY";
+constexpr char JAVA_MAP_VALUE_FIELD_NAME[] = "VALUE";
+} // namespace
 
 #ifdef __ANDROID__
 static jint JNI_VERSION = JNI_VERSION_1_6;
@@ -1146,18 +1156,13 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueCreateValue(JNIEnv* e
             auto precision =
                 static_cast<int32_t>(env->CallIntMethod(val, J_C_BigDecimal_M_precision));
             auto scale = static_cast<int32_t>(env->CallIntMethod(val, J_C_BigDecimal_M_scale));
-            if (precision > DECIMAL_PRECISION_LIMIT) {
+            if (precision > JAVA_DECIMAL_PRECISION_LIMIT) {
                 throw NotImplementedException(
                     std::format("Decimal precision cannot be greater than {}"
                                 "Note: positive exponents contribute to precision",
-                        DECIMAL_PRECISION_LIMIT));
+                        JAVA_DECIMAL_PRECISION_LIMIT));
             }
-            auto type = LogicalType::DECIMAL(precision, scale);
-            auto tmp = Value::createDefaultValue(type);
-            int128_t res = 0;
-            lbug::function::decimalCast(str.c_str(), str.length(), res, type);
-            tmp.val.int128Val = res;
-            v = new Value(tmp);
+            v = new Value(LogicalType::DECIMAL(precision, scale), str);
         } else if (env->IsInstanceOf(val, J_C_String)) {
             jstring value = static_cast<jstring>(val);
             std::string str = jstringToUtf8String(env, value);
@@ -1754,8 +1759,9 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugCreateMap(JNIEnv* env, j
     jobjectArray keys, jobjectArray values) {
     try {
         jsize len = env->GetArrayLength(keys);
-        DASSERT(env->GetArrayLength(values) == len);
-        DASSERT(len > 0);
+        if (env->GetArrayLength(values) != len || len <= 0) {
+            return nullptr;
+        }
 
         std::optional<LogicalType> keyType;
         std::optional<LogicalType> valueType;
@@ -1769,15 +1775,17 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugCreateMap(JNIEnv* env, j
                 keyType = key->getDataType().copy();
                 valueType = value->getDataType().copy();
             } else {
-                DASSERT(valueType.has_value());
+                if (!valueType.has_value()) {
+                    return nullptr;
+                }
                 if (key->getDataType() != *keyType || value->getDataType() != *valueType) {
                     return nullptr;
                 }
             }
 
             std::vector<StructField> structFields;
-            structFields.emplace_back(InternalKeyword::MAP_KEY, keyType->copy());
-            structFields.emplace_back(InternalKeyword::MAP_VALUE, valueType->copy());
+            structFields.emplace_back(JAVA_MAP_KEY_FIELD_NAME, keyType->copy());
+            structFields.emplace_back(JAVA_MAP_VALUE_FIELD_NAME, valueType->copy());
 
             decltype(children) structVals;
             structVals.emplace_back(std::move(key));
@@ -1786,8 +1794,9 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugCreateMap(JNIEnv* env, j
                 LogicalType::STRUCT(std::move(structFields)), std::move(structVals)));
         }
 
-        DASSERT(keyType.has_value());
-        DASSERT(valueType.has_value());
+        if (!keyType.has_value() || !valueType.has_value()) {
+            return nullptr;
+        }
         Value* mapValue = new Value(LogicalType::MAP(std::move(*keyType), std::move(*valueType)),
             std::move(children));
         return createJavaObject(env, mapValue, J_C_Value, J_C_Value_F_v_ref);
@@ -1803,8 +1812,9 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugCreateStruct(JNIEnv* env
     jobjectArray fieldNames, jobjectArray fieldValues) {
     try {
         jsize len = env->GetArrayLength(fieldNames);
-        DASSERT(env->GetArrayLength(fieldValues) == len);
-        DASSERT(len > 0);
+        if (env->GetArrayLength(fieldValues) != len || len <= 0) {
+            return nullptr;
+        }
 
         std::vector<std::unique_ptr<Value>> children;
         auto structFields = std::vector<StructField>{};
