@@ -26,8 +26,12 @@ public class TestBase {
     @AfterAll
     static void destroyDBandConn() {
         try {
-            db.close();
-            conn.close();
+            if (conn != null) {
+                conn.close();
+            }
+            if (db != null) {
+                db.close();
+            }
         } catch (AssertionError e) {
             fail("destroyDBandConn failed: ");
         }
