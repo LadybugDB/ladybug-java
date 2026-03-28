@@ -10,10 +10,12 @@
 #include <vector>
 
 #include "com_ladybugdb_Native.h"
-#if __has_include("c_api/lbug.h")
+#if __has_include("lbug.h")
+#include "lbug.h"
+#elif __has_include("c_api/lbug.h")
 #include "c_api/lbug.h"
 #else
-#include "lbug.h"
+#error "Public lbug header not found"
 #endif
 #include <format>
 #include <jni.h>
