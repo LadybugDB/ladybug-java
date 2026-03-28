@@ -133,6 +133,16 @@ tasks.sourcesJar {
 
 test {
     useJUnitPlatform()
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+        exceptionFormat = 'full'
+        showStandardStreams = true
+    }
+    jvmArgs(
+            '-XX:+UnlockDiagnosticVMOptions',
+            "-XX:ErrorFile=${layout.buildDirectory.file('hs_err_pid%p.log').get().asFile.absolutePath}",
+            '-XX:+CreateCoredumpOnCrash'
+    )
 }
 
 tasks.withType(JavaCompile) {
