@@ -130,6 +130,7 @@ tasks.sourcesJar {
 
 test {
     useJUnitPlatform()
+    systemProperty 'ladybug.projectDir', projectDir.absolutePath
     testLogging {
         events 'passed', 'skipped', 'failed'
         exceptionFormat = 'full'

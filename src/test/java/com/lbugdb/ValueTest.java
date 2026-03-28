@@ -22,7 +22,17 @@ public class ValueTest extends TestBase {
             QueryResult result = conn.execute(preparedStatement, parameters);
             if (result.hasNext()) {
                 Value cur = result.getNext().getValue(0);
-                assertTrue(val.isNull() && cur.isNull() || val.getValue().equals(cur.getValue()));
+                if (val.isNull() || cur.isNull()) {
+                    assertTrue(val.isNull() && cur.isNull());
+                    return;
+                }
+                Object expected = val.getValue();
+                Object actual = cur.getValue();
+                if (expected instanceof BigDecimal && actual instanceof BigDecimal) {
+                    assertEquals(0, ((BigDecimal) expected).compareTo((BigDecimal) actual));
+                } else {
+                    assertTrue(val.isNull() && cur.isNull() || expected.equals(actual));
+                }
             }
         }
     }
@@ -1522,6 +1532,7 @@ public class ValueTest extends TestBase {
 
         flatTuple = result.getNext();
         value = flatTuple.getValue(0);
+        mapVal = new LbugMap(value);
         assertTrue(value.isOwnedByCPP());
         key = mapVal.getKey(0);
         assertNull(key);
@@ -1530,6 +1541,7 @@ public class ValueTest extends TestBase {
 
         flatTuple = result.getNext();
         value = flatTuple.getValue(0);
+        mapVal = new LbugMap(value);
         assertTrue(value.isOwnedByCPP());
         key = mapVal.getKey(0);
         fieldName = key.getValue();
