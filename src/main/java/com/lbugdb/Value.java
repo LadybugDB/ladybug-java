@@ -79,8 +79,9 @@ public class Value implements AutoCloseable {
         checkNotDestroyed();
         if (!isOwnedByCPP) {
             Native.lbugValueDestroy(this);
-            destroyed = true;
         }
+        v_ref = 0;
+        destroyed = true;
     }
 
     /**

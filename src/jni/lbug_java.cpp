@@ -66,6 +66,7 @@ static jmethodID J_C_QuerySummary_M_ctor;
 // FlatTuple
 static jclass J_C_FlatTuple;
 static jfieldID J_C_FlatTuple_F_ft_ref;
+static jfieldID J_C_FlatTuple_F_isOwnedByCPP;
 // Value
 static jclass J_C_Value;
 static jfieldID J_C_Value_F_v_ref;
@@ -805,7 +806,9 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetNext(JNIEn
         auto* qr = getQueryResult(env, thisQR);
         auto* flatTuple = new lbug_flat_tuple();
         throwIfError(lbug_query_result_get_next(qr, flatTuple), "Failed to fetch next tuple");
-        return createJavaObject(env, flatTuple, J_C_FlatTuple, J_C_FlatTuple_F_ft_ref);
+        jobject ret = createJavaObject(env, flatTuple, J_C_FlatTuple, J_C_FlatTuple_F_ft_ref);
+        env->SetBooleanField(ret, J_C_FlatTuple_F_isOwnedByCPP, static_cast<jboolean>(true));
+        return ret;
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -2122,6 +2125,7 @@ void initGlobalFieldRef(JNIEnv* env) {
         J_C_DataType_F_dt_ref = env->GetFieldID(J_C_DataType, "dt_ref", "J");
 
         J_C_FlatTuple_F_ft_ref = env->GetFieldID(J_C_FlatTuple, "ft_ref", "J");
+        J_C_FlatTuple_F_isOwnedByCPP = env->GetFieldID(J_C_FlatTuple, "isOwnedByCPP", "Z");
 
         J_C_Value_F_v_ref = env->GetFieldID(J_C_Value, "v_ref", "J");
         J_C_Value_F_isOwnedByCPP = env->GetFieldID(J_C_Value, "isOwnedByCPP", "Z");

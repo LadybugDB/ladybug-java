@@ -41,8 +41,9 @@ public class QueryResult implements AutoCloseable {
         checkNotDestroyed();
         if (!isOwnedByCPP) {
             Native.lbugQueryResultDestroy(this);
-            destroyed = true;
         }
+        qr_ref = 0;
+        destroyed = true;
     }
 
     /**

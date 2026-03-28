@@ -6,6 +6,7 @@ package com.ladybugdb;
 public class FlatTuple implements AutoCloseable {
     long ft_ref;
     boolean destroyed = false;
+    boolean isOwnedByCPP = false;
 
     /**
      * Check if the flat tuple has been destroyed.
@@ -34,7 +35,10 @@ public class FlatTuple implements AutoCloseable {
      */
     private void destroy() {
         checkNotDestroyed();
-        Native.lbugFlatTupleDestroy(this);
+        if (!isOwnedByCPP) {
+            Native.lbugFlatTupleDestroy(this);
+        }
+        ft_ref = 0;
         destroyed = true;
     }
 
