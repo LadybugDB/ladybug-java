@@ -1,4 +1,3 @@
-#include <unordered_map>
 #include <stdexcept>
 
 #ifdef _WIN32
@@ -11,25 +10,19 @@
 #include <vector>
 
 #include "com_ladybugdb_Native.h"
-#if __has_include("lbug.h")
-#include "lbug.h"
+#if __has_include("c_api/lbug.h")
+#include "c_api/lbug.h"
 #else
-#include "main/lbug.h"
+#include "lbug.h"
 #endif
 #include <format>
 #include <jni.h>
-
-using namespace lbug::main;
-using namespace lbug::common;
-using namespace lbug::processor;
 
 using Exception = std::exception;
 using NotImplementedException = std::runtime_error;
 
 namespace {
 constexpr auto JAVA_DECIMAL_PRECISION_LIMIT = 38;
-constexpr char JAVA_MAP_KEY_FIELD_NAME[] = "KEY";
-constexpr char JAVA_MAP_VALUE_FIELD_NAME[] = "VALUE";
 } // namespace
 
 #ifdef __ANDROID__
@@ -138,6 +131,7 @@ static jmethodID J_C_Duration_M_toMillis;
 // UUID
 static jclass J_C_UUID;
 static jmethodID J_C_UUID_M_init;
+static jmethodID J_C_UUID_M_fromString;
 static jmethodID J_C_UUID_M_getMostSignificantBits;
 static jmethodID J_C_UUID_M_getLeastSignificantBits;
 // Connection
@@ -194,12 +188,12 @@ jobject createJavaObject(JNIEnv* env, void* memAddress, jclass javaClass, jfield
     return jobject();
 }
 
-Database* getDatabase(JNIEnv* env, jobject thisDB) {
+lbug_database* getDatabase(JNIEnv* env, jobject thisDB) {
     try {
         jlong fieldValue = env->GetLongField(thisDB, J_C_Database_db_ref);
 
         uint64_t address = static_cast<uint64_t>(fieldValue);
-        Database* db = reinterpret_cast<Database*>(address);
+        auto* db = reinterpret_cast<lbug_database*>(address);
         return db;
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -209,13 +203,13 @@ Database* getDatabase(JNIEnv* env, jobject thisDB) {
     return nullptr;
 }
 
-Connection* getConnection(JNIEnv* env, jobject thisConn) {
+lbug_connection* getConnection(JNIEnv* env, jobject thisConn) {
 
     try {
         jlong fieldValue = env->GetLongField(thisConn, J_C_Connection_F_conn_ref);
 
         uint64_t address = static_cast<uint64_t>(fieldValue);
-        Connection* conn = reinterpret_cast<Connection*>(address);
+        auto* conn = reinterpret_cast<lbug_connection*>(address);
         return conn;
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -225,12 +219,12 @@ Connection* getConnection(JNIEnv* env, jobject thisConn) {
     return nullptr;
 }
 
-PreparedStatement* getPreparedStatement(JNIEnv* env, jobject thisPS) {
+lbug_prepared_statement* getPreparedStatement(JNIEnv* env, jobject thisPS) {
     try {
         jlong fieldValue = env->GetLongField(thisPS, J_C_PreparedStatement_F_ps_ref);
 
         uint64_t address = static_cast<uint64_t>(fieldValue);
-        PreparedStatement* ps = reinterpret_cast<PreparedStatement*>(address);
+        auto* ps = reinterpret_cast<lbug_prepared_statement*>(address);
         return ps;
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -240,12 +234,12 @@ PreparedStatement* getPreparedStatement(JNIEnv* env, jobject thisPS) {
     return nullptr;
 }
 
-QueryResult* getQueryResult(JNIEnv* env, jobject thisQR) {
+lbug_query_result* getQueryResult(JNIEnv* env, jobject thisQR) {
     try {
         jlong fieldValue = env->GetLongField(thisQR, J_C_QueryResult_F_qr_ref);
 
         uint64_t address = static_cast<uint64_t>(fieldValue);
-        QueryResult* qr = reinterpret_cast<QueryResult*>(address);
+        auto* qr = reinterpret_cast<lbug_query_result*>(address);
         return qr;
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -255,13 +249,12 @@ QueryResult* getQueryResult(JNIEnv* env, jobject thisQR) {
     return nullptr;
 }
 
-FlatTuple* getFlatTuple(JNIEnv* env, jobject thisFT) {
+lbug_flat_tuple* getFlatTuple(JNIEnv* env, jobject thisFT) {
     try {
         jlong fieldValue = env->GetLongField(thisFT, J_C_FlatTuple_F_ft_ref);
 
         uint64_t address = static_cast<uint64_t>(fieldValue);
-        auto ft = reinterpret_cast<std::shared_ptr<FlatTuple>*>(address);
-        return ft->get();
+        return reinterpret_cast<lbug_flat_tuple*>(address);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -270,13 +263,12 @@ FlatTuple* getFlatTuple(JNIEnv* env, jobject thisFT) {
     return nullptr;
 }
 
-LogicalType* getDataType(JNIEnv* env, jobject thisDT) {
+lbug_logical_type* getDataType(JNIEnv* env, jobject thisDT) {
     try {
         jlong fieldValue = env->GetLongField(thisDT, J_C_DataType_F_dt_ref);
 
         uint64_t address = static_cast<uint64_t>(fieldValue);
-        auto* dt = reinterpret_cast<LogicalType*>(address);
-        return dt;
+        return reinterpret_cast<lbug_logical_type*>(address);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -285,13 +277,12 @@ LogicalType* getDataType(JNIEnv* env, jobject thisDT) {
     return nullptr;
 }
 
-Value* getValue(JNIEnv* env, jobject thisValue) {
+lbug_value* getValue(JNIEnv* env, jobject thisValue) {
     try {
         jlong fieldValue = env->GetLongField(thisValue, J_C_Value_F_v_ref);
 
         uint64_t address = static_cast<uint64_t>(fieldValue);
-        Value* v = reinterpret_cast<Value*>(address);
-        return v;
+        return reinterpret_cast<lbug_value*>(address);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -300,51 +291,102 @@ Value* getValue(JNIEnv* env, jobject thisValue) {
     return nullptr;
 }
 
-internalID_t getInternalID(JNIEnv* env, jobject id) {
+lbug_internal_id_t getInternalID(JNIEnv* env, jobject id) {
     try {
-        table_id_t table_id =
-            static_cast<table_id_t>(env->GetLongField(id, J_C_InternalID_F_tableId));
-        offset_t offset = static_cast<offset_t>(env->GetLongField(id, J_C_InternalID_F_offset));
-        return internalID_t(offset, table_id);
+        auto table_id = static_cast<uint64_t>(env->GetLongField(id, J_C_InternalID_F_tableId));
+        auto offset = static_cast<uint64_t>(env->GetLongField(id, J_C_InternalID_F_offset));
+        return {.table_id = table_id, .offset = offset};
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
         throwJNIException(env, "Unknown Error");
     }
-    return internalID_t();
+    return {};
 }
 
-std::string dataTypeToString(const LogicalType& dataType) {
-    return LogicalTypeUtils::toString(dataType.getLogicalTypeID());
+void throwIfError(lbug_state state, const char* message) {
+    if (state != LbugSuccess) {
+        throw NotImplementedException(message);
+    }
 }
 
-std::unordered_map<std::string, std::unique_ptr<Value>> javaMapToCPPMap(JNIEnv* env,
+std::string takeOwnedCString(char* str) {
+    if (str == nullptr) {
+        return "";
+    }
+    std::string result(str);
+    lbug_destroy_string(str);
+    return result;
+}
+
+jstring takeOwnedCStringAsJString(JNIEnv* env, char* str) {
+    if (str == nullptr) {
+        return nullptr;
+    }
+    auto result = utf8StringToJstring(env, str);
+    lbug_destroy_string(str);
+    return result;
+}
+
+std::string dataTypeToString(lbug_data_type_id dataType) {
+    switch (dataType) {
+    case LBUG_ANY: return "ANY";
+    case LBUG_NODE: return "NODE";
+    case LBUG_REL: return "REL";
+    case LBUG_RECURSIVE_REL: return "RECURSIVE_REL";
+    case LBUG_SERIAL: return "SERIAL";
+    case LBUG_BOOL: return "BOOL";
+    case LBUG_INT64: return "INT64";
+    case LBUG_INT32: return "INT32";
+    case LBUG_INT16: return "INT16";
+    case LBUG_INT8: return "INT8";
+    case LBUG_UINT64: return "UINT64";
+    case LBUG_UINT32: return "UINT32";
+    case LBUG_UINT16: return "UINT16";
+    case LBUG_UINT8: return "UINT8";
+    case LBUG_INT128: return "INT128";
+    case LBUG_DOUBLE: return "DOUBLE";
+    case LBUG_FLOAT: return "FLOAT";
+    case LBUG_DATE: return "DATE";
+    case LBUG_TIMESTAMP: return "TIMESTAMP";
+    case LBUG_TIMESTAMP_SEC: return "TIMESTAMP_SEC";
+    case LBUG_TIMESTAMP_MS: return "TIMESTAMP_MS";
+    case LBUG_TIMESTAMP_NS: return "TIMESTAMP_NS";
+    case LBUG_TIMESTAMP_TZ: return "TIMESTAMP_TZ";
+    case LBUG_INTERVAL: return "INTERVAL";
+    case LBUG_DECIMAL: return "DECIMAL";
+    case LBUG_INTERNAL_ID: return "INTERNAL_ID";
+    case LBUG_STRING: return "STRING";
+    case LBUG_BLOB: return "BLOB";
+    case LBUG_LIST: return "LIST";
+    case LBUG_ARRAY: return "ARRAY";
+    case LBUG_STRUCT: return "STRUCT";
+    case LBUG_MAP: return "MAP";
+    case LBUG_UNION: return "UNION";
+    case LBUG_UUID: return "UUID";
+    default: return "ANY";
+    }
+}
+
+void bindJavaParamsToPreparedStatement(JNIEnv* env, lbug_prepared_statement* preparedStatement,
     jobject javaMap) {
-    try {
-        jobject set = env->CallObjectMethod(javaMap, J_C_Map_M_entrySet);
-        jobject iter = env->CallObjectMethod(set, J_C_Set_M_iterator);
-
-        std::unordered_map<std::string, std::unique_ptr<Value>> result;
-        while (env->CallBooleanMethod(iter, J_C_Iterator_M_hasNext)) {
-            jobject entry = env->CallObjectMethod(iter, J_C_Iterator_M_next);
-            jstring key = (jstring)env->CallObjectMethod(entry, J_C_Map$Entry_M_getKey);
-            jobject value = env->CallObjectMethod(entry, J_C_Map$Entry_M_getValue);
-            std::string keyStr = jstringToUtf8String(env, key);
-            const Value* v = getValue(env, value);
-            // Java code can keep a reference to the value, so we cannot move.
-            result.insert({keyStr, v->copy()});
-
-            env->DeleteLocalRef(entry);
-            env->DeleteLocalRef(key);
-            env->DeleteLocalRef(value);
-        }
-        return result;
-    } catch (const Exception& e) {
-        throwJNIException(env, e.what());
-    } catch (...) {
-        throwJNIException(env, "Unknown Error");
+    jobject set = env->CallObjectMethod(javaMap, J_C_Map_M_entrySet);
+    jobject iter = env->CallObjectMethod(set, J_C_Set_M_iterator);
+    while (env->CallBooleanMethod(iter, J_C_Iterator_M_hasNext)) {
+        jobject entry = env->CallObjectMethod(iter, J_C_Iterator_M_next);
+        jstring key = (jstring)env->CallObjectMethod(entry, J_C_Map$Entry_M_getKey);
+        jobject value = env->CallObjectMethod(entry, J_C_Map$Entry_M_getValue);
+        std::string keyStr = jstringToUtf8String(env, key);
+        auto* clonedValue = lbug_value_clone(getValue(env, value));
+        auto state =
+            lbug_prepared_statement_bind_value(preparedStatement, keyStr.c_str(), clonedValue);
+        lbug_value_destroy(clonedValue);
+        free(clonedValue);
+        throwIfError(state, "Failed to bind prepared statement parameter");
+        env->DeleteLocalRef(entry);
+        env->DeleteLocalRef(key);
+        env->DeleteLocalRef(value);
     }
-    return std::unordered_map<std::string, std::unique_ptr<Value>>();
 }
 
 /**
@@ -379,24 +421,32 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugDatabaseInit(JNIEnv* env, 
     jboolean throwOnWalReplayFailure, jboolean enableChecksums) {
     try {
         const char* path = env->GetStringUTFChars(databasePath, JNI_FALSE);
-        uint64_t buffer = static_cast<uint64_t>(bufferPoolSize);
-        SystemConfig systemConfig{};
-        systemConfig.bufferPoolSize = buffer == 0 ? systemConfig.bufferPoolSize : buffer;
-        systemConfig.enableCompression = enableCompression;
-        systemConfig.readOnly = readOnly;
-        systemConfig.maxDBSize = maxDbSize == 0 ? systemConfig.maxDBSize : maxDbSize;
-        systemConfig.autoCheckpoint = autoCheckpoint;
-        systemConfig.checkpointThreshold =
-            checkpointThreshold >= 0 ? checkpointThreshold : systemConfig.checkpointThreshold;
-        systemConfig.throwOnWalReplayFailure = throwOnWalReplayFailure;
-        systemConfig.enableChecksums = enableChecksums;
+        auto systemConfig = lbug_default_system_config();
+        if (bufferPoolSize != 0) {
+            systemConfig.buffer_pool_size = static_cast<uint64_t>(bufferPoolSize);
+        }
+        systemConfig.enable_compression = enableCompression;
+        systemConfig.read_only = readOnly;
+        if (maxDbSize != 0) {
+            systemConfig.max_db_size = static_cast<uint64_t>(maxDbSize);
+        }
+        systemConfig.auto_checkpoint = autoCheckpoint;
+        if (checkpointThreshold >= 0) {
+            systemConfig.checkpoint_threshold = static_cast<uint64_t>(checkpointThreshold);
+        }
+        systemConfig.throw_on_wal_replay_failure = throwOnWalReplayFailure;
+        systemConfig.enable_checksums = enableChecksums;
         try {
-            Database* db = new Database(path, systemConfig);
-            uint64_t address = reinterpret_cast<uint64_t>(db);
-
+            auto* db = new lbug_database();
+            auto state = lbug_database_init(path, systemConfig, db);
             env->ReleaseStringUTFChars(databasePath, path);
-            return static_cast<jlong>(address);
-        } catch (Exception& e) {
+            if (state != LbugSuccess) {
+                delete db;
+                env->ThrowNew(J_C_Exception, "Failed to initialize database");
+                return 0;
+            }
+            return static_cast<jlong>(reinterpret_cast<uint64_t>(db));
+        } catch (const Exception& e) {
             env->ReleaseStringUTFChars(databasePath, path);
             env->ThrowNew(J_C_Exception, e.what());
         }
@@ -411,7 +461,8 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugDatabaseInit(JNIEnv* env, 
 JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugDatabaseDestroy(JNIEnv* env, jclass,
     jobject thisDB) {
     try {
-        Database* db = getDatabase(env, thisDB);
+        auto* db = getDatabase(env, thisDB);
+        lbug_database_destroy(db);
         delete db;
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -428,13 +479,11 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugConnectionInit(JNIEnv* env
     jobject db) {
 
     try {
-        Database* conn_db = getDatabase(env, db);
-
-        Connection* conn = new Connection(conn_db);
-        uint64_t connAddress = reinterpret_cast<uint64_t>(conn);
-
-        return static_cast<jlong>(connAddress);
-    } catch (Exception& e) {
+        auto* conn_db = getDatabase(env, db);
+        auto* conn = new lbug_connection();
+        throwIfError(lbug_connection_init(conn_db, conn), "Failed to initialize connection");
+        return static_cast<jlong>(reinterpret_cast<uint64_t>(conn));
+    } catch (const Exception& e) {
         throwJNIException(env, e.what());
     }
     return 0;
@@ -443,7 +492,8 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugConnectionInit(JNIEnv* env
 JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugConnectionDestroy(JNIEnv* env, jclass,
     jobject thisConn) {
     try {
-        Connection* conn = getConnection(env, thisConn);
+        auto* conn = getConnection(env, thisConn);
+        lbug_connection_destroy(conn);
         delete conn;
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -455,9 +505,10 @@ JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugConnectionDestroy(JNIEnv* e
 JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugConnectionSetMaxNumThreadForExec(JNIEnv* env,
     jclass, jobject thisConn, jlong numThreads) {
     try {
-        Connection* conn = getConnection(env, thisConn);
-        uint64_t threads = static_cast<uint64_t>(numThreads);
-        conn->setMaxNumThreadForExec(threads);
+        auto* conn = getConnection(env, thisConn);
+        auto threads = static_cast<uint64_t>(numThreads);
+        throwIfError(lbug_connection_set_max_num_thread_for_exec(conn, threads),
+            "Failed to set max threads for execution");
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -468,10 +519,11 @@ JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugConnectionSetMaxNumThreadFo
 JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugConnectionGetMaxNumThreadForExec(JNIEnv* env,
     jclass, jobject thisConn) {
     try {
-        Connection* conn = getConnection(env, thisConn);
-        uint64_t threads = conn->getMaxNumThreadForExec();
-        jlong numThreads = static_cast<jlong>(threads);
-        return numThreads;
+        auto* conn = getConnection(env, thisConn);
+        uint64_t threads = 0;
+        throwIfError(lbug_connection_get_max_num_thread_for_exec(conn, &threads),
+            "Failed to get max threads for execution");
+        return static_cast<jlong>(threads);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -483,16 +535,12 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugConnectionGetMaxNumThreadF
 JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionQuery(JNIEnv* env, jclass,
     jobject thisConn, jstring query) {
     try {
-        Connection* conn = getConnection(env, thisConn);
+        auto* conn = getConnection(env, thisConn);
         std::string cppQuery = jstringToUtf8String(env, query);
-        auto queryResult = conn->query(cppQuery).release();
-
-        uint64_t qrAddress = reinterpret_cast<uint64_t>(queryResult);
-        jlong qrRef = static_cast<jlong>(qrAddress);
-
-        jobject newQRObject = env->AllocObject(J_C_QueryResult);
-        env->SetLongField(newQRObject, J_C_QueryResult_F_qr_ref, qrRef);
-        return newQRObject;
+        auto* queryResult = new lbug_query_result();
+        throwIfError(lbug_connection_query(conn, cppQuery.c_str(), queryResult),
+            "Failed to execute query");
+        return createJavaObject(env, queryResult, J_C_QueryResult, J_C_QueryResult_F_qr_ref);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -504,14 +552,11 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionQuery(JNIEnv* 
 JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionPrepare(JNIEnv* env, jclass,
     jobject thisConn, jstring query) {
     try {
-        Connection* conn = getConnection(env, thisConn);
+        auto* conn = getConnection(env, thisConn);
         std::string cppQuery = jstringToUtf8String(env, query);
-
-        PreparedStatement* preparedStatement = conn->prepare(cppQuery).release();
-        if (preparedStatement == nullptr) {
-            return nullptr;
-        }
-
+        auto* preparedStatement = new lbug_prepared_statement();
+        throwIfError(lbug_connection_prepare(conn, cppQuery.c_str(), preparedStatement),
+            "Failed to prepare statement");
         jobject ret = createJavaObject(env, preparedStatement, J_C_PreparedStatement,
             J_C_PreparedStatement_F_ps_ref);
         return ret;
@@ -526,17 +571,12 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionPrepare(JNIEnv
 JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionExecute(JNIEnv* env, jclass,
     jobject thisConn, jobject preStm, jobject paramMap) {
     try {
-        Connection* conn = getConnection(env, thisConn);
-        PreparedStatement* ps = getPreparedStatement(env, preStm);
-
-        std::unordered_map<std::string, std::unique_ptr<Value>> params =
-            javaMapToCPPMap(env, paramMap);
-
-        auto queryResult = conn->executeWithParams(ps, std::move(params)).release();
-        if (queryResult == nullptr) {
-            return nullptr;
-        }
-
+        auto* conn = getConnection(env, thisConn);
+        auto* ps = getPreparedStatement(env, preStm);
+        bindJavaParamsToPreparedStatement(env, ps, paramMap);
+        auto* queryResult = new lbug_query_result();
+        throwIfError(lbug_connection_execute(conn, ps, queryResult),
+            "Failed to execute prepared statement");
         jobject ret = createJavaObject(env, queryResult, J_C_QueryResult, J_C_QueryResult_F_qr_ref);
         return ret;
     } catch (const Exception& e) {
@@ -550,8 +590,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionExecute(JNIEnv
 JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugConnectionInterrupt(JNIEnv* env, jclass,
     jobject thisConn) {
     try {
-        Connection* conn = getConnection(env, thisConn);
-        conn->interrupt();
+        auto* conn = getConnection(env, thisConn);
+        lbug_connection_interrupt(conn);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -562,9 +602,10 @@ JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugConnectionInterrupt(JNIEnv*
 JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugConnectionSetQueryTimeout(JNIEnv* env, jclass,
     jobject thisConn, jlong timeoutInMs) {
     try {
-        Connection* conn = getConnection(env, thisConn);
-        uint64_t timeout = static_cast<uint64_t>(timeoutInMs);
-        conn->setQueryTimeOut(timeout);
+        auto* conn = getConnection(env, thisConn);
+        auto timeout = static_cast<uint64_t>(timeoutInMs);
+        throwIfError(lbug_connection_set_query_timeout(conn, timeout),
+            "Failed to set query timeout");
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -579,7 +620,8 @@ JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugConnectionSetQueryTimeout(J
 JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugPreparedStatementDestroy(JNIEnv* env, jclass,
     jobject thisPS) {
     try {
-        PreparedStatement* ps = getPreparedStatement(env, thisPS);
+        auto* ps = getPreparedStatement(env, thisPS);
+        lbug_prepared_statement_destroy(ps);
         delete ps;
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -591,8 +633,8 @@ JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugPreparedStatementDestroy(JN
 JNIEXPORT jboolean JNICALL Java_com_ladybugdb_Native_lbugPreparedStatementIsSuccess(JNIEnv* env,
     jclass, jobject thisPS) {
     try {
-        PreparedStatement* ps = getPreparedStatement(env, thisPS);
-        return static_cast<jboolean>(ps->isSuccess());
+        auto* ps = getPreparedStatement(env, thisPS);
+        return static_cast<jboolean>(lbug_prepared_statement_is_success(ps));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -604,10 +646,8 @@ JNIEXPORT jboolean JNICALL Java_com_ladybugdb_Native_lbugPreparedStatementIsSucc
 JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugPreparedStatementGetErrorMessage(
     JNIEnv* env, jclass, jobject thisPS) {
     try {
-        PreparedStatement* ps = getPreparedStatement(env, thisPS);
-        std::string errorMessage = ps->getErrorMessage();
-        jstring msg = utf8StringToJstring(env, errorMessage);
-        return msg;
+        auto* ps = getPreparedStatement(env, thisPS);
+        return takeOwnedCStringAsJString(env, lbug_prepared_statement_get_error_message(ps));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -623,7 +663,8 @@ JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugPreparedStatementGetErro
 JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugQueryResultDestroy(JNIEnv* env, jclass,
     jobject thisQR) {
     try {
-        QueryResult* qr = getQueryResult(env, thisQR);
+        auto* qr = getQueryResult(env, thisQR);
+        lbug_query_result_destroy(qr);
         delete qr;
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -635,8 +676,8 @@ JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugQueryResultDestroy(JNIEnv* 
 JNIEXPORT jboolean JNICALL Java_com_ladybugdb_Native_lbugQueryResultIsSuccess(JNIEnv* env, jclass,
     jobject thisQR) {
     try {
-        QueryResult* qr = getQueryResult(env, thisQR);
-        return static_cast<jboolean>(qr->isSuccess());
+        auto* qr = getQueryResult(env, thisQR);
+        return static_cast<jboolean>(lbug_query_result_is_success(qr));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -648,10 +689,8 @@ JNIEXPORT jboolean JNICALL Java_com_ladybugdb_Native_lbugQueryResultIsSuccess(JN
 JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetErrorMessage(JNIEnv* env,
     jclass, jobject thisQR) {
     try {
-        QueryResult* qr = getQueryResult(env, thisQR);
-        std::string errorMessage = qr->getErrorMessage();
-        jstring msg = utf8StringToJstring(env, errorMessage);
-        return msg;
+        auto* qr = getQueryResult(env, thisQR);
+        return takeOwnedCStringAsJString(env, lbug_query_result_get_error_message(qr));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -663,8 +702,8 @@ JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetErrorMessa
 JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetNumColumns(JNIEnv* env, jclass,
     jobject thisQR) {
     try {
-        QueryResult* qr = getQueryResult(env, thisQR);
-        return static_cast<jlong>(qr->getNumColumns());
+        auto* qr = getQueryResult(env, thisQR);
+        return static_cast<jlong>(lbug_query_result_get_num_columns(qr));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -676,15 +715,13 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetNumColumns(J
 JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetColumnName(JNIEnv* env,
     jclass, jobject thisQR, jlong index) {
     try {
-        QueryResult* qr = getQueryResult(env, thisQR);
-        auto columnNames = qr->getColumnNames();
-        uint64_t idx = static_cast<uint64_t>(index);
-        if (idx >= columnNames.size()) {
+        auto* qr = getQueryResult(env, thisQR);
+        char* columnName = nullptr;
+        if (lbug_query_result_get_column_name(qr, static_cast<uint64_t>(index), &columnName) !=
+            LbugSuccess) {
             return nullptr;
         }
-        std::string columnName = columnNames[idx];
-        jstring name = utf8StringToJstring(env, columnName);
-        return name;
+        return takeOwnedCStringAsJString(env, columnName);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -696,21 +733,14 @@ JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetColumnName
 JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetColumnDataType(JNIEnv* env,
     jclass, jobject thisQR, jlong index) {
     try {
-        QueryResult* qr = getQueryResult(env, thisQR);
-        auto columnDataTypes = qr->getColumnDataTypes();
-        uint64_t idx = static_cast<uint64_t>(index);
-        if (idx >= columnDataTypes.size()) {
+        auto* qr = getQueryResult(env, thisQR);
+        auto* dataType = new lbug_logical_type();
+        if (lbug_query_result_get_column_data_type(qr, static_cast<uint64_t>(index), dataType) !=
+            LbugSuccess) {
+            delete dataType;
             return nullptr;
         }
-        auto columnDataType = columnDataTypes[idx].copy();
-        auto* cdtCopy = new LogicalType(std::move(columnDataType));
-
-        uint64_t dtAddress = reinterpret_cast<uint64_t>(cdtCopy);
-        jlong dtRef = static_cast<jlong>(dtAddress);
-
-        jobject newDTObject = env->AllocObject(J_C_DataType);
-        env->SetLongField(newDTObject, J_C_DataType_F_dt_ref, dtRef);
-        return newDTObject;
+        return createJavaObject(env, dataType, J_C_DataType, J_C_DataType_F_dt_ref);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -722,8 +752,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetColumnData
 JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetNumTuples(JNIEnv* env, jclass,
     jobject thisQR) {
     try {
-        QueryResult* qr = getQueryResult(env, thisQR);
-        return static_cast<jlong>(qr->getNumTuples());
+        auto* qr = getQueryResult(env, thisQR);
+        return static_cast<jlong>(lbug_query_result_get_num_tuples(qr));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -735,14 +765,15 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetNumTuples(JN
 JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetQuerySummary(JNIEnv* env,
     jclass, jobject thisQR) {
     try {
-        QueryResult* qr = getQueryResult(env, thisQR);
-        auto querySummary = qr->getQuerySummary();
-
-        jdouble cmpTime = static_cast<jdouble>(querySummary->getCompilingTime());
-        jdouble exeTime = static_cast<jdouble>(querySummary->getExecutionTime());
-
+        auto* qr = getQueryResult(env, thisQR);
+        lbug_query_summary querySummary;
+        throwIfError(lbug_query_result_get_query_summary(qr, &querySummary),
+            "Failed to fetch query summary");
+        jdouble cmpTime = static_cast<jdouble>(lbug_query_summary_get_compiling_time(&querySummary));
+        jdouble exeTime = static_cast<jdouble>(lbug_query_summary_get_execution_time(&querySummary));
         jobject newQSObject =
             env->NewObject(J_C_QuerySummary, J_C_QuerySummary_M_ctor, cmpTime, exeTime);
+        lbug_query_summary_destroy(&querySummary);
         return newQSObject;
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -755,8 +786,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetQuerySumma
 JNIEXPORT jboolean JNICALL Java_com_ladybugdb_Native_lbugQueryResultHasNext(JNIEnv* env, jclass,
     jobject thisQR) {
     try {
-        QueryResult* qr = getQueryResult(env, thisQR);
-        return static_cast<jboolean>(qr->hasNext());
+        auto* qr = getQueryResult(env, thisQR);
+        return static_cast<jboolean>(lbug_query_result_has_next(qr));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -768,16 +799,10 @@ JNIEXPORT jboolean JNICALL Java_com_ladybugdb_Native_lbugQueryResultHasNext(JNIE
 JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetNext(JNIEnv* env, jclass,
     jobject thisQR) {
     try {
-        QueryResult* qr = getQueryResult(env, thisQR);
-        auto flatTuple = qr->getNext();
-
-        auto newFT = new std::shared_ptr<FlatTuple>(flatTuple);
-        uint64_t ftAddress = reinterpret_cast<uint64_t>(newFT);
-        jlong ftRef = static_cast<jlong>(ftAddress);
-
-        jobject newFTObject = env->AllocObject(J_C_FlatTuple);
-        env->SetLongField(newFTObject, J_C_FlatTuple_F_ft_ref, ftRef);
-        return newFTObject;
+        auto* qr = getQueryResult(env, thisQR);
+        auto* flatTuple = new lbug_flat_tuple();
+        throwIfError(lbug_query_result_get_next(qr, flatTuple), "Failed to fetch next tuple");
+        return createJavaObject(env, flatTuple, J_C_FlatTuple, J_C_FlatTuple_F_ft_ref);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -789,8 +814,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetNext(JNIEn
 JNIEXPORT jboolean JNICALL Java_com_ladybugdb_Native_lbugQueryResultHasNextQueryResult(JNIEnv* env,
     jclass, jobject thisQR) {
     try {
-        QueryResult* qr = getQueryResult(env, thisQR);
-        return qr->hasNextQueryResult();
+        auto* qr = getQueryResult(env, thisQR);
+        return static_cast<jboolean>(lbug_query_result_has_next_query_result(qr));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -802,12 +827,12 @@ JNIEXPORT jboolean JNICALL Java_com_ladybugdb_Native_lbugQueryResultHasNextQuery
 JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetNextQueryResult(JNIEnv* env,
     jclass, jobject thisQR) {
     try {
-        QueryResult* qr = getQueryResult(env, thisQR);
-        auto queryResult = qr->getNextQueryResult();
-        if (queryResult == nullptr) {
+        auto* qr = getQueryResult(env, thisQR);
+        auto* queryResult = new lbug_query_result();
+        if (lbug_query_result_get_next_query_result(qr, queryResult) != LbugSuccess) {
+            delete queryResult;
             return nullptr;
         }
-
         jobject ret = createJavaObject(env, queryResult, J_C_QueryResult, J_C_QueryResult_F_qr_ref);
         env->SetBooleanField(ret, J_C_QueryResult_F_isOwnedByCPP, static_cast<jboolean>(true));
         return ret;
@@ -822,10 +847,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetNextQueryR
 JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugQueryResultToString(JNIEnv* env, jclass,
     jobject thisQR) {
     try {
-        QueryResult* qr = getQueryResult(env, thisQR);
-        std::string resultString = qr->toString();
-        jstring ret = utf8StringToJstring(env, resultString);
-        return ret;
+        auto* qr = getQueryResult(env, thisQR);
+        return takeOwnedCStringAsJString(env, lbug_query_result_to_string(qr));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -837,8 +860,8 @@ JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugQueryResultToString(JNIE
 JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugQueryResultResetIterator(JNIEnv* env, jclass,
     jobject thisQR) {
     try {
-        QueryResult* qr = getQueryResult(env, thisQR);
-        qr->resetIterator();
+        auto* qr = getQueryResult(env, thisQR);
+        lbug_query_result_reset_iterator(qr);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -853,13 +876,9 @@ JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugQueryResultResetIterator(JN
 JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugFlatTupleDestroy(JNIEnv* env, jclass,
     jobject thisFT) {
     try {
-        jlong fieldValue = env->GetLongField(thisFT, J_C_FlatTuple_F_ft_ref);
-
-        uint64_t address = static_cast<uint64_t>(fieldValue);
-        auto flat_tuple_shared_ptr = reinterpret_cast<std::shared_ptr<FlatTuple>*>(address);
-
-        flat_tuple_shared_ptr->reset();
-        delete flat_tuple_shared_ptr;
+        auto* flatTuple = getFlatTuple(env, thisFT);
+        lbug_flat_tuple_destroy(flatTuple);
+        delete flatTuple;
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -870,14 +889,12 @@ JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugFlatTupleDestroy(JNIEnv* en
 JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugFlatTupleGetValue(JNIEnv* env, jclass,
     jobject thisFT, jlong index) {
     try {
-        FlatTuple* ft = getFlatTuple(env, thisFT);
-        Value* value = nullptr;
-        try {
-            value = ft->getValue(index);
-        } catch (Exception& e) {
+        auto* ft = getFlatTuple(env, thisFT);
+        auto* value = new lbug_value();
+        if (lbug_flat_tuple_get_value(ft, static_cast<uint64_t>(index), value) != LbugSuccess) {
+            delete value;
             return nullptr;
         }
-
         jobject v = createJavaObject(env, value, J_C_Value, J_C_Value_F_v_ref);
         env->SetBooleanField(v, J_C_Value_F_isOwnedByCPP, static_cast<jboolean>(true));
 
@@ -893,10 +910,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugFlatTupleGetValue(JNIEnv
 JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugFlatTupleToString(JNIEnv* env, jclass,
     jobject thisFT) {
     try {
-        FlatTuple* ft = getFlatTuple(env, thisFT);
-        std::string resultString = ft->toString();
-        jstring ret = utf8StringToJstring(env, resultString);
-        return ret;
+        auto* ft = getFlatTuple(env, thisFT);
+        return takeOwnedCStringAsJString(env, lbug_flat_tuple_to_string(ft));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -909,35 +924,15 @@ JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugFlatTupleToString(JNIEnv
  * All DataType native functions
  */
 
-namespace lbug::common {
-struct JavaAPIHelper {
-    static inline LogicalType* createLogicalType(LogicalTypeID typeID,
-        std::unique_ptr<ExtraTypeInfo> extraTypeInfo) {
-        return new LogicalType(typeID, std::move(extraTypeInfo));
-    }
-};
-} // namespace lbug::common
-
 JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugDataTypeCreate(JNIEnv* env, jclass,
     jobject id, jobject childType, jlong numElementsInArray) {
     try {
         jint fieldValue = env->GetIntField(id, J_C_DataTypeID_F_value);
-
-        uint8_t dataTypeIdU8 = static_cast<uint8_t>(fieldValue);
-        LogicalType* dataType = nullptr;
-        auto logicalTypeID = static_cast<LogicalTypeID>(dataTypeIdU8);
-        if (childType == nullptr) {
-            dataType = new LogicalType(logicalTypeID);
-        } else {
-            auto childTypePty = getDataType(env, childType)->copy();
-            auto extraTypeInfo =
-                numElementsInArray > 0 ?
-                    std::make_unique<ArrayTypeInfo>(std::move(childTypePty), numElementsInArray) :
-                    std::make_unique<ListTypeInfo>(std::move(childTypePty));
-            dataType = JavaAPIHelper::createLogicalType(logicalTypeID, std::move(extraTypeInfo));
-        }
-        uint64_t address = reinterpret_cast<uint64_t>(dataType);
-        return static_cast<jlong>(address);
+        auto* dataType = new lbug_logical_type();
+        auto* childTypePtr = childType == nullptr ? nullptr : getDataType(env, childType);
+        lbug_data_type_create(static_cast<lbug_data_type_id>(fieldValue), childTypePtr,
+            static_cast<uint64_t>(numElementsInArray), dataType);
+        return static_cast<jlong>(reinterpret_cast<uint64_t>(dataType));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -950,8 +945,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugDataTypeClone(JNIEnv* en
     jobject thisDT) {
     try {
         auto* oldDT = getDataType(env, thisDT);
-        auto* newDT = new LogicalType(oldDT->copy());
-
+        auto* newDT = new lbug_logical_type();
+        lbug_data_type_clone(oldDT, newDT);
         jobject dt = createJavaObject(env, newDT, J_C_DataType, J_C_DataType_F_dt_ref);
         return dt;
     } catch (const Exception& e) {
@@ -966,6 +961,7 @@ JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugDataTypeDestroy(JNIEnv* env
     jobject thisDT) {
     try {
         auto* dt = getDataType(env, thisDT);
+        lbug_data_type_destroy(dt);
         delete dt;
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -979,8 +975,7 @@ JNIEXPORT jboolean JNICALL Java_com_ladybugdb_Native_lbugDataTypeEquals(JNIEnv* 
     try {
         auto* cppdt1 = getDataType(env, dt1);
         auto* cppdt2 = getDataType(env, dt2);
-
-        return static_cast<jboolean>(*cppdt1 == *cppdt2);
+        return static_cast<jboolean>(lbug_data_type_equals(cppdt1, cppdt2));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -993,7 +988,7 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugDataTypeGetId(JNIEnv* en
     jobject thisDT) {
     try {
         auto* dt = getDataType(env, thisDT);
-        std::string idStr = dataTypeToString(*dt);
+        std::string idStr = dataTypeToString(lbug_data_type_get_id(dt));
         jfieldID idField =
             env->GetStaticFieldID(J_C_DataTypeID, idStr.c_str(), "Lcom/ladybugdb/DataTypeID;");
         jobject id = env->GetStaticObjectField(J_C_DataTypeID, idField);
@@ -1010,17 +1005,12 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugDataTypeGetChildType(JNI
     jobject thisDT) {
     try {
         auto* parentType = getDataType(env, thisDT);
-        LogicalType childType;
-        if (parentType->getLogicalTypeID() == LogicalTypeID::ARRAY) {
-            childType = ArrayType::getChildType(*parentType).copy();
-        } else if (parentType->getLogicalTypeID() == LogicalTypeID::LIST) {
-            childType = ListType::getChildType(*parentType).copy();
-        } else {
+        auto* childType = new lbug_logical_type();
+        if (lbug_data_type_get_child_type(parentType, childType) != LbugSuccess) {
+            delete childType;
             return nullptr;
         }
-        auto* newChildType = new LogicalType(std::move(childType));
-        jobject ret = createJavaObject(env, newChildType, J_C_DataType, J_C_DataType_F_dt_ref);
-        return ret;
+        return createJavaObject(env, childType, J_C_DataType, J_C_DataType_F_dt_ref);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1033,10 +1023,11 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugDataTypeGetNumElementsInAr
     jclass, jobject thisDT) {
     try {
         auto* dt = getDataType(env, thisDT);
-        if (dt->getLogicalTypeID() != LogicalTypeID::ARRAY) {
+        uint64_t result = 0;
+        if (lbug_data_type_get_num_elements_in_array(dt, &result) != LbugSuccess) {
             return 0;
         }
-        return static_cast<jlong>(ArrayType::getNumElements(*dt));
+        return static_cast<jlong>(result);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1051,7 +1042,7 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugDataTypeGetNumElementsInAr
 
 JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueCreateNull(JNIEnv* env, jclass) {
     try {
-        Value* v = new Value(Value::createNullValue());
+        auto* v = lbug_value_create_null();
         jobject ret = createJavaObject(env, v, J_C_Value, J_C_Value_F_v_ref);
         return ret;
     } catch (const Exception& e) {
@@ -1066,7 +1057,7 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueCreateNullWithDataT
     jclass, jobject dataType) {
     try {
         auto* dt = getDataType(env, dataType);
-        Value* v = new Value(Value::createNullValue(*dt));
+        auto* v = lbug_value_create_null_with_data_type(dt);
         jobject ret = createJavaObject(env, v, J_C_Value, J_C_Value_F_v_ref);
         return ret;
     } catch (const Exception& e) {
@@ -1080,8 +1071,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueCreateNullWithDataT
 JNIEXPORT jboolean JNICALL Java_com_ladybugdb_Native_lbugValueIsNull(JNIEnv* env, jclass,
     jobject thisV) {
     try {
-        Value* v = getValue(env, thisV);
-        return static_cast<jboolean>(v->isNull());
+        auto* v = getValue(env, thisV);
+        return static_cast<jboolean>(lbug_value_is_null(v));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1093,8 +1084,8 @@ JNIEXPORT jboolean JNICALL Java_com_ladybugdb_Native_lbugValueIsNull(JNIEnv* env
 JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugValueSetNull(JNIEnv* env, jclass,
     jobject thisV, jboolean isNull) {
     try {
-        Value* v = getValue(env, thisV);
-        v->setNull(static_cast<bool>(isNull));
+        auto* v = getValue(env, thisV);
+        lbug_value_set_null(v, static_cast<bool>(isNull));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1106,7 +1097,7 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueCreateDefault(JNIEn
     jobject dataType) {
     try {
         auto* dt = getDataType(env, dataType);
-        Value* v = new Value(Value::createDefaultValue(*dt));
+        auto* v = lbug_value_create_default(dt);
         jobject ret = createJavaObject(env, v, J_C_Value, J_C_Value_F_v_ref);
         return ret;
     } catch (const Exception& e) {
@@ -1120,35 +1111,35 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueCreateDefault(JNIEn
 JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueCreateValue(JNIEnv* env, jclass,
     jobject val) {
     try {
-        Value* v = nullptr;
+        lbug_value* v = nullptr;
         if (env->IsInstanceOf(val, J_C_Boolean)) {
             jboolean value = env->CallBooleanMethod(val, J_C_Boolean_M_booleanValue);
-            v = new Value(static_cast<bool>(value));
+            v = lbug_value_create_bool(static_cast<bool>(value));
         } else if (env->IsInstanceOf(val, J_C_Byte)) {
             jbyte value = env->CallByteMethod(val, J_C_Byte_M_byteValue);
-            v = new Value(static_cast<int8_t>(value));
+            v = lbug_value_create_int8(static_cast<int8_t>(value));
         } else if (env->IsInstanceOf(val, J_C_Short)) {
             jshort value = env->CallShortMethod(val, J_C_Short_M_shortValue);
-            v = new Value(static_cast<int16_t>(value));
+            v = lbug_value_create_int16(static_cast<int16_t>(value));
         } else if (env->IsInstanceOf(val, J_C_Integer)) {
             jint value = env->CallIntMethod(val, J_C_Integer_M_intValue);
-            v = new Value(static_cast<int32_t>(value));
+            v = lbug_value_create_int32(static_cast<int32_t>(value));
         } else if (env->IsInstanceOf(val, J_C_Long)) {
             jlong value = env->CallLongMethod(val, J_C_Long_M_longValue);
-            v = new Value(static_cast<int64_t>(value));
+            v = lbug_value_create_int64(static_cast<int64_t>(value));
         } else if (env->IsInstanceOf(val, J_C_BigInteger)) {
             int64_t lower =
                 static_cast<int64_t>(env->CallLongMethod(val, J_C_BigInteger_M_longValue));
             jobject shifted = env->CallObjectMethod(val, J_C_BigInteger_M_shiftRight, 64);
             int64_t upper =
                 static_cast<int64_t>(env->CallLongMethod(shifted, J_C_BigInteger_M_longValue));
-            v = new Value(int128_t(lower, upper));
+            v = lbug_value_create_int128({.low = static_cast<uint64_t>(lower), .high = upper});
         } else if (env->IsInstanceOf(val, J_C_Float)) {
             jfloat value = env->CallFloatMethod(val, J_C_Float_M_floatValue);
-            v = new Value(static_cast<float>(value));
+            v = lbug_value_create_float(static_cast<float>(value));
         } else if (env->IsInstanceOf(val, J_C_Double)) {
             jdouble value = env->CallDoubleMethod(val, J_C_Double_M_doubleValue);
-            v = new Value(static_cast<double>(value));
+            v = lbug_value_create_double(static_cast<double>(value));
         } else if (env->IsInstanceOf(val, J_C_BigDecimal)) {
             jstring value =
                 static_cast<jstring>(env->CallObjectMethod(val, J_C_BigDecimal_M_toString));
@@ -1162,28 +1153,29 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueCreateValue(JNIEnv* e
                                 "Note: positive exponents contribute to precision",
                         JAVA_DECIMAL_PRECISION_LIMIT));
             }
-            v = new Value(LogicalType::DECIMAL(precision, scale), str);
+            v = lbug_value_create_decimal(str.c_str(), static_cast<uint32_t>(precision),
+                static_cast<uint32_t>(scale));
         } else if (env->IsInstanceOf(val, J_C_String)) {
             jstring value = static_cast<jstring>(val);
             std::string str = jstringToUtf8String(env, value);
-            v = new Value(str.c_str());
+            v = lbug_value_create_string(str.c_str());
         } else if (env->IsInstanceOf(val, J_C_InternalID)) {
-            int64_t tableId =
-                static_cast<int64_t>(env->GetLongField(val, J_C_InternalID_F_tableId));
-            int64_t offset = static_cast<int64_t>(env->GetLongField(val, J_C_InternalID_F_offset));
-            internalID_t id(offset, tableId);
-            v = new Value(id);
+            v = lbug_value_create_internal_id(getInternalID(env, val));
         } else if (env->IsInstanceOf(val, J_C_UUID)) {
-            int64_t upper =
+            auto upper =
                 static_cast<int64_t>(env->CallLongMethod(val, J_C_UUID_M_getMostSignificantBits));
-            uint64_t lower =
+            auto lower =
                 static_cast<uint64_t>(env->CallLongMethod(val, J_C_UUID_M_getLeastSignificantBits));
-            int128_t uuidValue(lower, upper ^ (int64_t(1) << 63));
-            v = new Value(uuid{uuidValue});
+            auto uuidHigh = static_cast<int64_t>(static_cast<uint64_t>(upper) ^ (uint64_t{1} << 63));
+            lbug_int128_t uuidValue{.low = lower, .high = uuidHigh};
+            char* uuidStr = nullptr;
+            throwIfError(lbug_int128_t_to_string(uuidValue, &uuidStr), "Failed to convert UUID");
+            v = lbug_value_create_uuid(uuidStr);
+            lbug_destroy_string(uuidStr);
         } else if (env->IsInstanceOf(val, J_C_LocalDate)) {
             int64_t days =
                 static_cast<int64_t>(env->CallLongMethod(val, J_C_LocalDate_M_toEpochDay));
-            v = new Value(date_t(days));
+            v = lbug_value_create_date({.days = static_cast<int32_t>(days)});
         } else if (env->IsInstanceOf(val, J_C_Instant)) {
             // TODO: Need to review this for overflow
             int64_t seconds =
@@ -1191,16 +1183,15 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueCreateValue(JNIEnv* e
             int64_t nano = static_cast<int64_t>(env->CallLongMethod(val, J_C_LocalDate_M_getNano));
 
             int64_t micro = (seconds * 1000000L) + (nano / 1000L);
-            v = new Value(timestamp_t(micro));
+            v = lbug_value_create_timestamp({.value = micro});
         } else if (env->IsInstanceOf(val, J_C_Duration)) {
             auto milis = env->CallLongMethod(val, J_C_Duration_M_toMillis);
-            v = new Value(interval_t(0, 0, milis * 1000L));
+            v = lbug_value_create_interval({.months = 0, .days = 0, .micros = milis * 1000L});
         } else {
             throwJNIException(env, "Type of value is not supported in value_create_value");
             return -1;
         }
-        uint64_t address = reinterpret_cast<uint64_t>(v);
-        return static_cast<jlong>(address);
+        return static_cast<jlong>(reinterpret_cast<uint64_t>(v));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1212,8 +1203,8 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueCreateValue(JNIEnv* e
 JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueClone(JNIEnv* env, jclass,
     jobject thisValue) {
     try {
-        Value* v = getValue(env, thisValue);
-        Value* copy = new Value(*v);
+        auto* v = getValue(env, thisValue);
+        auto* copy = lbug_value_clone(v);
         return createJavaObject(env, copy, J_C_Value, J_C_Value_F_v_ref);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -1226,9 +1217,9 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueClone(JNIEnv* env, 
 JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugValueCopy(JNIEnv* env, jclass,
     jobject thisValue, jobject otherValue) {
     try {
-        Value* thisV = getValue(env, thisValue);
-        Value* otherV = getValue(env, otherValue);
-        thisV->copyValueFrom(*otherV);
+        auto* thisV = getValue(env, thisValue);
+        auto* otherV = getValue(env, otherValue);
+        lbug_value_copy(thisV, otherV);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1239,8 +1230,9 @@ JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugValueCopy(JNIEnv* env, jcla
 JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugValueDestroy(JNIEnv* env, jclass,
     jobject thisValue) {
     try {
-        Value* v = getValue(env, thisValue);
-        delete v;
+        auto* v = getValue(env, thisValue);
+        lbug_value_destroy(v);
+        free(v);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1255,15 +1247,13 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugCreateList___3Lcom_ladyb
         if (len == 0) {
             return nullptr;
         }
-
-        std::vector<std::unique_ptr<Value>> children;
+        std::vector<lbug_value*> children;
         for (jsize i = 0; i < len; ++i) {
-            Value* element = getValue(env, env->GetObjectArrayElement(listValues, i));
-            children.emplace_back(element->copy());
+            children.push_back(getValue(env, env->GetObjectArrayElement(listValues, i)));
         }
-        LogicalType childType = children[0]->getDataType().copy();
-
-        Value* listValue = new Value(LogicalType::LIST(std::move(childType)), std::move(children));
+        lbug_value* listValue = nullptr;
+        throwIfError(lbug_value_create_list(static_cast<uint64_t>(children.size()), children.data(),
+            &listValue), "Failed to create list value");
         return createJavaObject(env, listValue, J_C_Value, J_C_Value_F_v_ref);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -1276,14 +1266,18 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugCreateList___3Lcom_ladyb
 JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugCreateList__Lcom_ladybugdb_DataType_2J(
     JNIEnv* env, jclass, jobject dataType, jlong numElements) {
     try {
-        LogicalType* logicalType = getDataType(env, dataType);
-
-        std::vector<std::unique_ptr<Value>> children;
+        auto* logicalType = getDataType(env, dataType);
+        std::vector<lbug_value*> children;
         for (jlong i = 0; i < numElements; ++i) {
-            children.emplace_back(std::make_unique<Value>(Value::createDefaultValue(*logicalType)));
+            children.push_back(lbug_value_create_default(logicalType));
         }
-
-        Value* listValue = new Value(LogicalType::LIST(logicalType->copy()), std::move(children));
+        lbug_value* listValue = nullptr;
+        throwIfError(lbug_value_create_list(static_cast<uint64_t>(children.size()), children.data(),
+            &listValue), "Failed to create list value");
+        for (auto* child : children) {
+            lbug_value_destroy(child);
+            free(child);
+        }
         return createJavaObject(env, listValue, J_C_Value, J_C_Value_F_v_ref);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -1296,8 +1290,10 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugCreateList__Lcom_ladybug
 JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueGetListSize(JNIEnv* env, jclass,
     jobject thisValue) {
     try {
-        Value* v = getValue(env, thisValue);
-        return static_cast<jlong>(NestedVal::getChildrenSize(v));
+        auto* v = getValue(env, thisValue);
+        uint64_t size = 0;
+        throwIfError(lbug_value_get_list_size(v, &size), "Failed to get list size");
+        return static_cast<jlong>(size);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1309,17 +1305,14 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueGetListSize(JNIEnv* e
 JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetListElement(JNIEnv* env, jclass,
     jobject thisValue, jlong index) {
     try {
-        Value* v = getValue(env, thisValue);
-        uint64_t idx = static_cast<uint64_t>(index);
-
-        auto size = NestedVal::getChildrenSize(v);
-        if (idx >= size) {
+        auto* v = getValue(env, thisValue);
+        auto* elementValue = new lbug_value();
+        if (lbug_value_get_list_element(v, static_cast<uint64_t>(index), elementValue) !=
+            LbugSuccess) {
+            delete elementValue;
             return nullptr;
         }
-
-        auto val = NestedVal::getChildVal(v, idx);
-
-        jobject element = createJavaObject(env, val, J_C_Value, J_C_Value_F_v_ref);
+        jobject element = createJavaObject(env, elementValue, J_C_Value, J_C_Value_F_v_ref);
         env->SetBooleanField(element, J_C_Value_F_isOwnedByCPP, static_cast<jboolean>(true));
         return element;
     } catch (const Exception& e) {
@@ -1333,8 +1326,9 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetListElement(JNIE
 JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetDataType(JNIEnv* env, jclass,
     jobject thisValue) {
     try {
-        Value* v = getValue(env, thisValue);
-        auto* dt = new LogicalType(v->getDataType().copy());
+        auto* v = getValue(env, thisValue);
+        auto* dt = new lbug_logical_type();
+        lbug_value_get_data_type(v, dt);
         return createJavaObject(env, dt, J_C_DataType, J_C_DataType_F_dt_ref);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -1347,153 +1341,187 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetDataType(JNIEnv*
 JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetValue(JNIEnv* env, jclass,
     jobject thisValue) {
     try {
-        Value* v = getValue(env, thisValue);
-        const auto& dt = v->getDataType();
-        auto logicalTypeId = dt.getLogicalTypeID();
+        auto* v = getValue(env, thisValue);
+        lbug_logical_type dataType;
+        lbug_value_get_data_type(v, &dataType);
+        auto logicalTypeId = lbug_data_type_get_id(&dataType);
 
         switch (logicalTypeId) {
-        case LogicalTypeID::BOOL: {
-            jboolean val = static_cast<jboolean>(v->getValue<bool>());
+        case LBUG_BOOL: {
+            bool value = false;
+            throwIfError(lbug_value_get_bool(v, &value), "Failed to read BOOL value");
+            jboolean val = static_cast<jboolean>(value);
             jobject ret = env->NewObject(J_C_Boolean, J_C_Boolean_M_init, val);
             return ret;
         }
-        case LogicalTypeID::INT64:
-        case LogicalTypeID::SERIAL: {
-            jlong val = static_cast<jlong>(v->getValue<int64_t>());
+        case LBUG_INT64:
+        case LBUG_SERIAL: {
+            int64_t value = 0;
+            throwIfError(lbug_value_get_int64(v, &value), "Failed to read INT64 value");
+            jlong val = static_cast<jlong>(value);
             jobject ret = env->NewObject(J_C_Long, J_C_Long_M_init, val);
             return ret;
         }
-        case LogicalTypeID::INT32: {
-            jint val = static_cast<jint>(v->getValue<int32_t>());
+        case LBUG_INT32: {
+            int32_t value = 0;
+            throwIfError(lbug_value_get_int32(v, &value), "Failed to read INT32 value");
+            jint val = static_cast<jint>(value);
             jobject ret = env->NewObject(J_C_Integer, J_C_Integer_M_init, val);
             return ret;
         }
-        case LogicalTypeID::INT16: {
-            jshort val = static_cast<jshort>(v->getValue<int16_t>());
+        case LBUG_INT16: {
+            int16_t value = 0;
+            throwIfError(lbug_value_get_int16(v, &value), "Failed to read INT16 value");
+            jshort val = static_cast<jshort>(value);
             jobject ret = env->NewObject(J_C_Short, J_C_Short_M_init, val);
             return ret;
         }
-        case LogicalTypeID::INT8: {
-            jbyte val = static_cast<jbyte>(v->getValue<int8_t>());
+        case LBUG_INT8: {
+            int8_t value = 0;
+            throwIfError(lbug_value_get_int8(v, &value), "Failed to read INT8 value");
+            jbyte val = static_cast<jbyte>(value);
             jobject ret = env->NewObject(J_C_Byte, J_C_Byte_M_init, val);
             return ret;
         }
-        case LogicalTypeID::UINT64: {
-            std::string value = v->toString();
-            jstring val = env->NewStringUTF(value.c_str());
+        case LBUG_UINT64: {
+            uint64_t value = 0;
+            throwIfError(lbug_value_get_uint64(v, &value), "Failed to read UINT64 value");
+            std::string valueStr = std::to_string(value);
+            jstring val = env->NewStringUTF(valueStr.c_str());
             jobject ret = env->NewObject(J_C_BigInteger, J_C_BigInteger_M_init, val);
             return ret;
         }
-        case LogicalTypeID::UINT32: {
-            jlong val = static_cast<jlong>(v->getValue<uint32_t>());
+        case LBUG_UINT32: {
+            uint32_t value = 0;
+            throwIfError(lbug_value_get_uint32(v, &value), "Failed to read UINT32 value");
+            jlong val = static_cast<jlong>(value);
             jobject ret = env->NewObject(J_C_Long, J_C_Long_M_init, val);
             return ret;
         }
-        case LogicalTypeID::UINT16: {
-            jint val = static_cast<jint>(v->getValue<uint16_t>());
+        case LBUG_UINT16: {
+            uint16_t value = 0;
+            throwIfError(lbug_value_get_uint16(v, &value), "Failed to read UINT16 value");
+            jint val = static_cast<jint>(value);
             jobject ret = env->NewObject(J_C_Integer, J_C_Integer_M_init, val);
             return ret;
         }
-        case LogicalTypeID::UINT8: {
-            jshort val = static_cast<jshort>(v->getValue<uint8_t>());
+        case LBUG_UINT8: {
+            uint8_t value = 0;
+            throwIfError(lbug_value_get_uint8(v, &value), "Failed to read UINT8 value");
+            jshort val = static_cast<jshort>(value);
             jobject ret = env->NewObject(J_C_Short, J_C_Short_M_init, val);
             return ret;
         }
-        case LogicalTypeID::INT128: {
-            int128_t int128_val = v->getValue<int128_t>();
-            jstring val = env->NewStringUTF(Int128_t::toString(int128_val).c_str());
+        case LBUG_INT128: {
+            lbug_int128_t value{};
+            throwIfError(lbug_value_get_int128(v, &value), "Failed to read INT128 value");
+            char* str = nullptr;
+            throwIfError(lbug_int128_t_to_string(value, &str), "Failed to format INT128 value");
+            jstring val = env->NewStringUTF(str);
+            lbug_destroy_string(str);
             jobject ret = env->NewObject(J_C_BigInteger, J_C_BigInteger_M_init, val);
             return ret;
         }
-        case LogicalTypeID::DOUBLE: {
-            jdouble val = static_cast<jdouble>(v->getValue<double>());
+        case LBUG_DOUBLE: {
+            double value = 0;
+            throwIfError(lbug_value_get_double(v, &value), "Failed to read DOUBLE value");
+            jdouble val = static_cast<jdouble>(value);
             jobject ret = env->NewObject(J_C_Double, J_C_Double_M_init, val);
             return ret;
         }
-        case LogicalTypeID::DECIMAL: {
-            jstring val = env->NewStringUTF(v->toString().c_str());
+        case LBUG_DECIMAL: {
+            char* str = nullptr;
+            throwIfError(lbug_value_get_decimal_as_string(v, &str), "Failed to read DECIMAL value");
+            jstring val = env->NewStringUTF(str);
+            lbug_destroy_string(str);
             jobject ret = env->NewObject(J_C_BigDecimal, J_C_BigDecimal_M_init, val);
             return ret;
         }
-        case LogicalTypeID::FLOAT: {
-            jfloat val = static_cast<jfloat>(v->getValue<float>());
+        case LBUG_FLOAT: {
+            float value = 0;
+            throwIfError(lbug_value_get_float(v, &value), "Failed to read FLOAT value");
+            jfloat val = static_cast<jfloat>(value);
             jobject ret = env->NewObject(J_C_Float, J_C_Float_M_init, val);
             return ret;
         }
-        case LogicalTypeID::DATE: {
-            date_t date = v->getValue<date_t>();
-            jobject ret = env->CallStaticObjectMethod(J_C_LocalDate, J_C_LocalDate_M_ofEpochDay,
-                static_cast<jlong>(date.days));
-            return ret;
+        case LBUG_DATE: {
+            lbug_date_t date{};
+            throwIfError(lbug_value_get_date(v, &date), "Failed to read DATE value");
+            return env->CallStaticObjectMethod(
+                J_C_LocalDate, J_C_LocalDate_M_ofEpochDay, static_cast<jlong>(date.days));
         }
-        case LogicalTypeID::TIMESTAMP_TZ: {
-            timestamp_tz_t ts = v->getValue<timestamp_tz_t>();
+        case LBUG_TIMESTAMP_TZ: {
+            lbug_timestamp_tz_t ts{};
+            throwIfError(lbug_value_get_timestamp_tz(v, &ts), "Failed to read TIMESTAMP_TZ value");
             int64_t seconds = ts.value / 1000000L;
             int64_t nano = ts.value % 1000000L * 1000L;
-            jobject ret = env->CallStaticObjectMethod(J_C_Instant, J_C_Instant_M_ofEpochSecond,
-                seconds, nano);
-            return ret;
+            return env->CallStaticObjectMethod(
+                J_C_Instant, J_C_Instant_M_ofEpochSecond, seconds, nano);
         }
-        case LogicalTypeID::TIMESTAMP: {
-            timestamp_t ts = v->getValue<timestamp_t>();
+        case LBUG_TIMESTAMP: {
+            lbug_timestamp_t ts{};
+            throwIfError(lbug_value_get_timestamp(v, &ts), "Failed to read TIMESTAMP value");
             int64_t seconds = ts.value / 1000000L;
             int64_t nano = ts.value % 1000000L * 1000L;
-            jobject ret = env->CallStaticObjectMethod(J_C_Instant, J_C_Instant_M_ofEpochSecond,
-                seconds, nano);
-            return ret;
+            return env->CallStaticObjectMethod(
+                J_C_Instant, J_C_Instant_M_ofEpochSecond, seconds, nano);
         }
-        case LogicalTypeID::TIMESTAMP_NS: {
-            timestamp_ns_t ts = v->getValue<timestamp_ns_t>();
+        case LBUG_TIMESTAMP_NS: {
+            lbug_timestamp_ns_t ts{};
+            throwIfError(lbug_value_get_timestamp_ns(v, &ts), "Failed to read TIMESTAMP_NS value");
             int64_t seconds = ts.value / 1000000000L;
             int64_t nano = ts.value % 1000000000L;
-            jobject ret = env->CallStaticObjectMethod(J_C_Instant, J_C_Instant_M_ofEpochSecond,
-                seconds, nano);
-            return ret;
+            return env->CallStaticObjectMethod(
+                J_C_Instant, J_C_Instant_M_ofEpochSecond, seconds, nano);
         }
-        case LogicalTypeID::TIMESTAMP_MS: {
-            timestamp_ms_t ts = v->getValue<timestamp_ms_t>();
+        case LBUG_TIMESTAMP_MS: {
+            lbug_timestamp_ms_t ts{};
+            throwIfError(lbug_value_get_timestamp_ms(v, &ts), "Failed to read TIMESTAMP_MS value");
             int64_t seconds = ts.value / 1000L;
             int64_t nano = ts.value % 1000L * 1000000L;
-            jobject ret = env->CallStaticObjectMethod(J_C_Instant, J_C_Instant_M_ofEpochSecond,
-                seconds, nano);
-            return ret;
+            return env->CallStaticObjectMethod(
+                J_C_Instant, J_C_Instant_M_ofEpochSecond, seconds, nano);
         }
-        case LogicalTypeID::TIMESTAMP_SEC: {
-            timestamp_sec_t ts = v->getValue<timestamp_sec_t>();
-            jobject ret =
-                env->CallStaticObjectMethod(J_C_Instant, J_C_Instant_M_ofEpochSecond, ts.value, 0);
-            return ret;
+        case LBUG_TIMESTAMP_SEC: {
+            lbug_timestamp_sec_t ts{};
+            throwIfError(lbug_value_get_timestamp_sec(v, &ts),
+                "Failed to read TIMESTAMP_SEC value");
+            return env->CallStaticObjectMethod(
+                J_C_Instant, J_C_Instant_M_ofEpochSecond, ts.value, 0);
         }
-        case LogicalTypeID::INTERVAL: {
-            interval_t in = v->getValue<interval_t>();
-            int64_t millis = Interval::getMicro(in) / 1000;
-            jobject ret =
-                env->CallStaticObjectMethod(J_C_Duration, J_C_Duration_M_ofMillis, millis);
-            return ret;
+        case LBUG_INTERVAL: {
+            lbug_interval_t interval{};
+            throwIfError(lbug_value_get_interval(v, &interval), "Failed to read INTERVAL value");
+            double seconds = 0;
+            lbug_interval_to_difftime(interval, &seconds);
+            auto millis = static_cast<jlong>(seconds * 1000);
+            return env->CallStaticObjectMethod(J_C_Duration, J_C_Duration_M_ofMillis, millis);
         }
-        case LogicalTypeID::INTERNAL_ID: {
-            internalID_t iid = v->getValue<internalID_t>();
-            jobject ret =
-                env->NewObject(J_C_InternalID, J_C_InternalID_M_init, iid.tableID, iid.offset);
-            return ret;
+        case LBUG_INTERNAL_ID: {
+            lbug_internal_id_t iid{};
+            throwIfError(lbug_value_get_internal_id(v, &iid), "Failed to read INTERNAL_ID value");
+            return env->NewObject(
+                J_C_InternalID, J_C_InternalID_M_init, iid.table_id, iid.offset);
         }
-        case LogicalTypeID::UUID: {
-            int128_t uuid = v->getValue<int128_t>();
-            jlong high = static_cast<jlong>(static_cast<uint64_t>(uuid.high ^ (int64_t(1) << 63)));
-            jlong low = static_cast<jlong>(static_cast<uint64_t>(uuid.low));
-            jobject ret = env->NewObject(J_C_UUID, J_C_UUID_M_init, high, low);
-            return ret;
+        case LBUG_UUID: {
+            char* str = nullptr;
+            throwIfError(lbug_value_get_uuid(v, &str), "Failed to read UUID value");
+            jstring uuid = env->NewStringUTF(str);
+            lbug_destroy_string(str);
+            return env->CallStaticObjectMethod(J_C_UUID, J_C_UUID_M_fromString, uuid);
         }
-        case LogicalTypeID::STRING: {
-            std::string str = v->getValue<std::string>();
-            jstring ret = utf8StringToJstring(env, str);
-            return ret;
+        case LBUG_STRING: {
+            char* str = nullptr;
+            throwIfError(lbug_value_get_string(v, &str), "Failed to read STRING value");
+            return takeOwnedCStringAsJString(env, str);
         }
-        case LogicalTypeID::BLOB: {
-            auto str = v->getValue<std::string>();
-            auto byteBuffer = str.c_str();
-            auto ret = env->NewByteArray(str.size());
-            env->SetByteArrayRegion(ret, 0, str.size(), (jbyte*)byteBuffer);
+        case LBUG_BLOB: {
+            uint8_t* blob = nullptr;
+            uint64_t length = 0;
+            throwIfError(lbug_value_get_blob(v, &blob, &length), "Failed to read BLOB value");
+            auto ret = env->NewByteArray(length);
+            env->SetByteArrayRegion(ret, 0, length, reinterpret_cast<jbyte*>(blob));
+            lbug_destroy_blob(blob);
             return ret;
         }
         default:
@@ -1511,10 +1539,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetValue(JNIEnv* en
 JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugValueToString(JNIEnv* env, jclass,
     jobject thisValue) {
     try {
-        Value* v = getValue(env, thisValue);
-        std::string result_string = v->toString();
-        jstring ret = utf8StringToJstring(env, result_string);
-        return ret;
+        auto* v = getValue(env, thisValue);
+        return takeOwnedCStringAsJString(env, lbug_value_to_string(v));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1526,14 +1552,16 @@ JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugValueToString(JNIEnv* en
 JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugNodeValGetId(JNIEnv* env, jclass,
     jobject thisNV) {
     try {
-        auto nv = getValue(env, thisNV);
-        auto idVal = NodeVal::getNodeIDVal(nv);
-        if (idVal == nullptr) {
-            return NULL;
+        auto* nv = getValue(env, thisNV);
+        lbug_value idValue;
+        if (lbug_node_val_get_id_val(nv, &idValue) != LbugSuccess) {
+            return nullptr;
         }
-        auto id = idVal->getValue<internalID_t>();
-        jobject ret = env->NewObject(J_C_InternalID, J_C_InternalID_M_init, id.tableID, id.offset);
-        return ret;
+        lbug_internal_id_t id{};
+        if (lbug_value_get_internal_id(&idValue, &id) != LbugSuccess) {
+            return nullptr;
+        }
+        return env->NewObject(J_C_InternalID, J_C_InternalID_M_init, id.table_id, id.offset);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1546,12 +1574,15 @@ JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugNodeValGetLabelName(JNIE
     jobject thisNV) {
     try {
         auto* nv = getValue(env, thisNV);
-        auto labelVal = NodeVal::getLabelVal(nv);
-        if (labelVal == nullptr) {
-            return NULL;
+        lbug_value labelValue;
+        if (lbug_node_val_get_label_val(nv, &labelValue) != LbugSuccess) {
+            return nullptr;
         }
-        std::string label = labelVal->getValue<std::string>();
-        return utf8StringToJstring(env, label);
+        char* label = nullptr;
+        if (lbug_value_get_string(&labelValue, &label) != LbugSuccess) {
+            return nullptr;
+        }
+        return takeOwnedCStringAsJString(env, label);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1564,7 +1595,9 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugNodeValGetPropertySize(JNI
     jobject thisNV) {
     try {
         auto* nv = getValue(env, thisNV);
-        auto size = NodeVal::getNumProperties(nv);
+        uint64_t size = 0;
+        throwIfError(
+            lbug_node_val_get_property_size(nv, &size), "Failed to get node property size");
         return static_cast<jlong>(size);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -1578,8 +1611,12 @@ JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugNodeValGetPropertyNameAt
     jclass, jobject thisNV, jlong index) {
     try {
         auto* nv = getValue(env, thisNV);
-        std::string propertyName = NodeVal::getPropertyName(nv, index);
-        return utf8StringToJstring(env, propertyName);
+        char* propertyName = nullptr;
+        if (lbug_node_val_get_property_name_at(nv, static_cast<uint64_t>(index), &propertyName) !=
+            LbugSuccess) {
+            return nullptr;
+        }
+        return takeOwnedCStringAsJString(env, propertyName);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1592,7 +1629,12 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugNodeValGetPropertyValueA
     jclass, jobject thisNV, jlong index) {
     try {
         auto* nv = getValue(env, thisNV);
-        auto propertyValue = NodeVal::getPropertyVal(nv, index);
+        auto* propertyValue = new lbug_value();
+        if (lbug_node_val_get_property_value_at(
+                nv, static_cast<uint64_t>(index), propertyValue) != LbugSuccess) {
+            delete propertyValue;
+            return nullptr;
+        }
         jobject ret = createJavaObject(env, propertyValue, J_C_Value, J_C_Value_F_v_ref);
         env->SetBooleanField(ret, J_C_Value_F_isOwnedByCPP, static_cast<jboolean>(true));
         return ret;
@@ -1608,9 +1650,9 @@ JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugNodeValToString(JNIEnv* 
     jobject thisNV) {
     try {
         auto* nv = getValue(env, thisNV);
-        std::string result_string = NodeVal::toString(nv);
-        jstring ret = utf8StringToJstring(env, result_string);
-        return ret;
+        char* result = nullptr;
+        throwIfError(lbug_node_val_to_string(nv, &result), "Failed to convert node to string");
+        return takeOwnedCStringAsJString(env, result);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1623,13 +1665,15 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugRelValGetId(JNIEnv* env,
     jobject thisRV) {
     try {
         auto* rv = getValue(env, thisRV);
-        auto srcIdVal = RelVal::getIDVal(rv);
-        if (srcIdVal == nullptr) {
-            return NULL;
+        lbug_value idValue;
+        if (lbug_rel_val_get_id_val(rv, &idValue) != LbugSuccess) {
+            return nullptr;
         }
-        internalID_t id = srcIdVal->getValue<internalID_t>();
-        jobject ret = env->NewObject(J_C_InternalID, J_C_InternalID_M_init, id.tableID, id.offset);
-        return ret;
+        lbug_internal_id_t id{};
+        if (lbug_value_get_internal_id(&idValue, &id) != LbugSuccess) {
+            return nullptr;
+        }
+        return env->NewObject(J_C_InternalID, J_C_InternalID_M_init, id.table_id, id.offset);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1642,13 +1686,15 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugRelValGetSrcId(JNIEnv* e
     jobject thisRV) {
     try {
         auto* rv = getValue(env, thisRV);
-        auto srcIdVal = RelVal::getSrcNodeIDVal(rv);
-        if (srcIdVal == nullptr) {
-            return NULL;
+        lbug_value idValue;
+        if (lbug_rel_val_get_src_id_val(rv, &idValue) != LbugSuccess) {
+            return nullptr;
         }
-        internalID_t id = srcIdVal->getValue<internalID_t>();
-        jobject ret = env->NewObject(J_C_InternalID, J_C_InternalID_M_init, id.tableID, id.offset);
-        return ret;
+        lbug_internal_id_t id{};
+        if (lbug_value_get_internal_id(&idValue, &id) != LbugSuccess) {
+            return nullptr;
+        }
+        return env->NewObject(J_C_InternalID, J_C_InternalID_M_init, id.table_id, id.offset);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1661,13 +1707,15 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugRelValGetDstId(JNIEnv* e
     jobject thisRV) {
     try {
         auto* rv = getValue(env, thisRV);
-        auto dstIdVal = RelVal::getDstNodeIDVal(rv);
-        if (dstIdVal == nullptr) {
-            return NULL;
+        lbug_value idValue;
+        if (lbug_rel_val_get_dst_id_val(rv, &idValue) != LbugSuccess) {
+            return nullptr;
         }
-        internalID_t id = dstIdVal->getValue<internalID_t>();
-        jobject ret = env->NewObject(J_C_InternalID, J_C_InternalID_M_init, id.tableID, id.offset);
-        return ret;
+        lbug_internal_id_t id{};
+        if (lbug_value_get_internal_id(&idValue, &id) != LbugSuccess) {
+            return nullptr;
+        }
+        return env->NewObject(J_C_InternalID, J_C_InternalID_M_init, id.table_id, id.offset);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1680,12 +1728,15 @@ JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugRelValGetLabelName(JNIEn
     jobject thisRV) {
     try {
         auto* rv = getValue(env, thisRV);
-        auto labelVal = RelVal::getLabelVal(rv);
-        if (labelVal == nullptr) {
-            return NULL;
+        lbug_value labelValue;
+        if (lbug_rel_val_get_label_val(rv, &labelValue) != LbugSuccess) {
+            return nullptr;
         }
-        std::string label = labelVal->getValue<std::string>();
-        return utf8StringToJstring(env, label);
+        char* label = nullptr;
+        if (lbug_value_get_string(&labelValue, &label) != LbugSuccess) {
+            return nullptr;
+        }
+        return takeOwnedCStringAsJString(env, label);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1698,7 +1749,9 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugRelValGetPropertySize(JNIE
     jobject thisRV) {
     try {
         auto* rv = getValue(env, thisRV);
-        auto size = RelVal::getNumProperties(rv);
+        uint64_t size = 0;
+        throwIfError(
+            lbug_rel_val_get_property_size(rv, &size), "Failed to get rel property size");
         return static_cast<jlong>(size);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -1712,8 +1765,12 @@ JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugRelValGetPropertyNameAt(
     jobject thisRV, jlong index) {
     try {
         auto* rv = getValue(env, thisRV);
-        std::string name = RelVal::getPropertyName(rv, index);
-        return utf8StringToJstring(env, name);
+        char* name = nullptr;
+        if (lbug_rel_val_get_property_name_at(rv, static_cast<uint64_t>(index), &name) !=
+            LbugSuccess) {
+            return nullptr;
+        }
+        return takeOwnedCStringAsJString(env, name);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1726,10 +1783,13 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugRelValGetPropertyValueAt
     jclass, jobject thisRV, jlong index) {
     try {
         auto* rv = getValue(env, thisRV);
-        uint64_t idx = static_cast<uint64_t>(index);
-        Value* val = RelVal::getPropertyVal(rv, idx);
-
-        jobject ret = createJavaObject(env, val, J_C_Value, J_C_Value_F_v_ref);
+        auto* value = new lbug_value();
+        if (lbug_rel_val_get_property_value_at(rv, static_cast<uint64_t>(index), value) !=
+            LbugSuccess) {
+            delete value;
+            return nullptr;
+        }
+        jobject ret = createJavaObject(env, value, J_C_Value, J_C_Value_F_v_ref);
         env->SetBooleanField(ret, J_C_Value_F_isOwnedByCPP, static_cast<jboolean>(true));
         return ret;
     } catch (const Exception& e) {
@@ -1744,9 +1804,9 @@ JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugRelValToString(JNIEnv* e
     jobject thisRV) {
     try {
         auto* rv = getValue(env, thisRV);
-        std::string result_string = RelVal::toString(rv);
-        jstring ret = utf8StringToJstring(env, result_string);
-        return ret;
+        char* result = nullptr;
+        throwIfError(lbug_rel_val_to_string(rv, &result), "Failed to convert rel to string");
+        return takeOwnedCStringAsJString(env, result);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1762,43 +1822,17 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugCreateMap(JNIEnv* env, j
         if (env->GetArrayLength(values) != len || len <= 0) {
             return nullptr;
         }
-
-        std::optional<LogicalType> keyType;
-        std::optional<LogicalType> valueType;
-
-        std::vector<std::unique_ptr<Value>> children;
+        std::vector<lbug_value*> keyValues;
+        std::vector<lbug_value*> mappedValues;
         for (jsize i = 0; i < len; ++i) {
-            auto key = getValue(env, env->GetObjectArrayElement(keys, i))->copy();
-            auto value = getValue(env, env->GetObjectArrayElement(values, i))->copy();
-
-            if (!keyType.has_value()) {
-                keyType = key->getDataType().copy();
-                valueType = value->getDataType().copy();
-            } else {
-                if (!valueType.has_value()) {
-                    return nullptr;
-                }
-                if (key->getDataType() != *keyType || value->getDataType() != *valueType) {
-                    return nullptr;
-                }
-            }
-
-            std::vector<StructField> structFields;
-            structFields.emplace_back(JAVA_MAP_KEY_FIELD_NAME, keyType->copy());
-            structFields.emplace_back(JAVA_MAP_VALUE_FIELD_NAME, valueType->copy());
-
-            decltype(children) structVals;
-            structVals.emplace_back(std::move(key));
-            structVals.emplace_back(std::move(value));
-            children.emplace_back(std::make_unique<Value>(
-                LogicalType::STRUCT(std::move(structFields)), std::move(structVals)));
+            keyValues.push_back(getValue(env, env->GetObjectArrayElement(keys, i)));
+            mappedValues.push_back(getValue(env, env->GetObjectArrayElement(values, i)));
         }
-
-        if (!keyType.has_value() || !valueType.has_value()) {
+        lbug_value* mapValue = nullptr;
+        if (lbug_value_create_map(static_cast<uint64_t>(len), keyValues.data(), mappedValues.data(),
+                &mapValue) != LbugSuccess) {
             return nullptr;
         }
-        Value* mapValue = new Value(LogicalType::MAP(std::move(*keyType), std::move(*valueType)),
-            std::move(children));
         return createJavaObject(env, mapValue, J_C_Value, J_C_Value_F_v_ref);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -1815,21 +1849,22 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugCreateStruct(JNIEnv* env
         if (env->GetArrayLength(fieldValues) != len || len <= 0) {
             return nullptr;
         }
-
-        std::vector<std::unique_ptr<Value>> children;
-        auto structFields = std::vector<StructField>{};
+        std::vector<std::string> fieldNamesCpp;
+        std::vector<const char*> fieldNamePtrs;
+        std::vector<lbug_value*> valuesCpp;
         for (jsize i = 0; i < len; ++i) {
-            auto fieldName = jstringToUtf8String(env,
-                reinterpret_cast<jstring>(env->GetObjectArrayElement(fieldNames, i)));
-            auto fieldValue = getValue(env, env->GetObjectArrayElement(fieldValues, i))->copy();
-            auto fieldType = fieldValue->getDataType().copy();
-
-            structFields.emplace_back(std::move(fieldName), std::move(fieldType));
-            children.push_back(std::move(fieldValue));
+            fieldNamesCpp.push_back(jstringToUtf8String(env,
+                reinterpret_cast<jstring>(env->GetObjectArrayElement(fieldNames, i))));
+            valuesCpp.push_back(getValue(env, env->GetObjectArrayElement(fieldValues, i)));
         }
-
-        Value* structValue =
-            new Value(LogicalType::STRUCT(std::move(structFields)), std::move(children));
+        for (const auto& name : fieldNamesCpp) {
+            fieldNamePtrs.push_back(name.c_str());
+        }
+        lbug_value* structValue = nullptr;
+        if (lbug_value_create_struct(static_cast<uint64_t>(len), fieldNamePtrs.data(),
+                valuesCpp.data(), &structValue) != LbugSuccess) {
+            return nullptr;
+        }
         return createJavaObject(env, structValue, J_C_Value, J_C_Value_F_v_ref);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -1843,13 +1878,13 @@ JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugValueGetStructFieldName(
     jobject thisSV, jlong index) {
     try {
         auto* sv = getValue(env, thisSV);
-        const auto& dataType = sv->getDataType();
-        auto fieldNames = StructType::getFieldNames(dataType);
-        if ((uint64_t)index >= fieldNames.size() || index < 0) {
+        char* name = nullptr;
+        if (index < 0 ||
+            lbug_value_get_struct_field_name(sv, static_cast<uint64_t>(index), &name) !=
+                LbugSuccess) {
             return nullptr;
         }
-        std::string name = fieldNames[index];
-        return utf8StringToJstring(env, name);
+        return takeOwnedCStringAsJString(env, name);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1863,13 +1898,11 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueGetStructIndex(JNIEnv
     try {
         auto* sv = getValue(env, thisSV);
         std::string field_name_str = jstringToUtf8String(env, fieldName);
-        const auto& dataType = sv->getDataType();
-        auto index = StructType::getFieldIdx(dataType, field_name_str);
-        if (index == INVALID_STRUCT_FIELD_IDX) {
+        uint64_t index = 0;
+        if (lbug_value_get_struct_field_index(sv, field_name_str.c_str(), &index) != LbugSuccess) {
             return -1;
-        } else {
-            return static_cast<jlong>(index);
         }
+        return static_cast<jlong>(index);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1880,7 +1913,7 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueGetStructIndex(JNIEnv
 
 JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugGetVersion(JNIEnv* env, jclass) {
     try {
-        return env->NewStringUTF(Version::getVersion());
+        return takeOwnedCStringAsJString(env, lbug_get_version());
 
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -1892,7 +1925,7 @@ JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugGetVersion(JNIEnv* env, 
 
 JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugGetStorageVersion(JNIEnv* env, jclass) {
     try {
-        return static_cast<jlong>(Version::getStorageVersion());
+        return static_cast<jlong>(lbug_get_storage_version());
 
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -2034,6 +2067,8 @@ void initGlobalMethodRef(JNIEnv* env) {
             env->GetMethodID(J_C_BigInteger, "shiftRight", "(I)Ljava/math/BigInteger;");
 
         J_C_UUID_M_init = env->GetMethodID(J_C_UUID, "<init>", "(JJ)V");
+        J_C_UUID_M_fromString =
+            env->GetStaticMethodID(J_C_UUID, "fromString", "(Ljava/lang/String;)Ljava/util/UUID;");
 
         J_C_UUID_M_getMostSignificantBits =
             env->GetMethodID(J_C_UUID, "getMostSignificantBits", "()J");
