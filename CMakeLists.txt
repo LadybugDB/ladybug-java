@@ -26,9 +26,16 @@ get_target_property(_classDir lbug_java CLASSDIR)
 
 set (_stubDir "${CMAKE_CURRENT_BINARY_DIR}")
 
-include_directories(${JNI_INCLUDE_DIRS} ${_classDir} ${_stubDir})
 add_library(lbug_java_native SHARED src/jni/lbug_java.cpp)
-target_link_libraries(lbug_java_native PRIVATE lbug_native_header lbug)
+target_include_directories(lbug_java_native PRIVATE ${JNI_INCLUDE_DIRS} ${_classDir} ${_stubDir})
+
+if(LBUG_API_USE_PRECOMPILED_LIB)
+    get_filename_component(LBUG_API_PRECOMPILED_INCLUDE_DIR "${LBUG_API_PRECOMPILED_LIB_PATH}" DIRECTORY)
+    target_include_directories(lbug_java_native PRIVATE ${LBUG_API_PRECOMPILED_INCLUDE_DIR})
+    target_link_libraries(lbug_java_native PRIVATE lbug_native_header "${LBUG_API_PRECOMPILED_LIB_PATH}")
+else()
+    target_link_libraries(lbug_java_native PRIVATE lbug_native_header lbug)
+endif()
 
 message(STATUS "OS_NAME=${OS_NAME}")
 message(STATUS "OS_ARCH=${OS_ARCH}")
