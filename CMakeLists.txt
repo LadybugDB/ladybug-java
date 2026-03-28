@@ -37,6 +37,9 @@ if(LBUG_API_USE_PRECOMPILED_LIB)
         ${LBUG_API_PRECOMPILED_LIB_DIR}
         ${LBUG_API_PRECOMPILED_INCLUDE_DIR}
     )
+    if(WIN32)
+        target_compile_definitions(lbug_java_native PRIVATE LBUG_STATIC_DEFINE)
+    endif()
     target_link_libraries(lbug_java_native PRIVATE
         lbug_native_header
         "${LBUG_API_PRECOMPILED_LIB_PATH}"
