@@ -685,7 +685,9 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionQuery(JNIEnv* 
         auto* conn = getConnection(env, thisConn);
         std::string cppQuery = jstringToUtf8String(env, query);
         auto* queryResult = new lbug_query_result();
-        if (lbug_connection_query(conn, cppQuery.c_str(), queryResult) != LbugSuccess) {
+        lbug_state state = lbug_connection_query(conn, cppQuery.c_str(), queryResult);
+        if (state != LbugSuccess && queryResult->_query_result == nullptr) {
+            // Infrastructure error: no result was produced at all.
             delete queryResult;
             if (auto* errorMessage = lbug_get_last_error()) {
                 throwJNIException(env, errorMessage);
@@ -695,6 +697,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionQuery(JNIEnv* 
             throwJNIException(env, "Failed to execute query");
             return jobject();
         }
+        // Query ran (may have failed logically): return result so Java can call
+        // isSuccess() / getErrorMessage().
         return createJavaObject(env, queryResult, J_C_QueryResult, J_C_QueryResult_F_qr_ref);
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
@@ -738,7 +742,9 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionExecute(JNIEnv
         auto* ps = getPreparedStatement(env, preStm);
         bindJavaParamsToPreparedStatement(env, ps, paramMap);
         auto* queryResult = new lbug_query_result();
-        if (lbug_connection_execute(conn, ps, queryResult) != LbugSuccess) {
+        lbug_state state = lbug_connection_execute(conn, ps, queryResult);
+        if (state != LbugSuccess && queryResult->_query_result == nullptr) {
+            // Infrastructure error: no result was produced at all.
             delete queryResult;
             if (auto* errorMessage = lbug_get_last_error()) {
                 throwJNIException(env, errorMessage);
@@ -748,6 +754,8 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionExecute(JNIEnv
             throwJNIException(env, "Failed to execute prepared statement");
             return jobject();
         }
+        // Query ran (may have failed logically): return result so Java can call
+        // isSuccess() / getErrorMessage().
         jobject ret = createJavaObject(env, queryResult, J_C_QueryResult, J_C_QueryResult_F_qr_ref);
         return ret;
     } catch (const Exception& e) {
