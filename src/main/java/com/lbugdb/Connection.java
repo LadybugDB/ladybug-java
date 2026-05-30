@@ -1,6 +1,11 @@
 package com.ladybugdb;
 
 import java.util.Map;
+import java.util.List;
+
+import org.apache.arrow.c.ArrowSchema;
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.VectorSchemaRoot;
 
 /**
  * Connection is used to interact with a Database instance. Each Connection is thread-safe. Multiple
@@ -132,5 +137,59 @@ public class Connection implements AutoCloseable {
     public void setQueryTimeout(long timeoutInMs) {
         checkNotDestroyed();
         Native.lbugConnectionSetQueryTimeout(this, timeoutInMs);
+    }
+
+    /**
+     * Registers Arrow memory as a node table. The first column is used as the table primary key.
+     */
+    public QueryResult createArrowTable(String tableName, List<VectorSchemaRoot> roots,
+            BufferAllocator allocator) {
+        checkNotDestroyed();
+        try (ArrowSchema schema = ArrowSchema.allocateNew(allocator);
+                ArrowArrays arrays = ArrowUtil.exportRoots(allocator, roots, schema)) {
+            return Native.lbugConnectionCreateArrowTable(this, tableName, schema.memoryAddress(),
+                    arrays.address(), roots.size());
+        }
+    }
+
+    /**
+     * Registers Arrow memory as a relationship table with endpoint columns named "from" and "to".
+     */
+    public QueryResult createArrowRelTable(String tableName, List<VectorSchemaRoot> roots,
+            String srcTableName, String dstTableName, BufferAllocator allocator) {
+        checkNotDestroyed();
+        try (ArrowSchema schema = ArrowSchema.allocateNew(allocator);
+                ArrowArrays arrays = ArrowUtil.exportRoots(allocator, roots, schema)) {
+            return Native.lbugConnectionCreateArrowRelTable(this, tableName, srcTableName,
+                    dstTableName, schema.memoryAddress(), arrays.address(), roots.size());
+        }
+    }
+
+    /**
+     * Registers Arrow memory in CSR form as a relationship table.
+     */
+    public QueryResult createArrowRelTableCSR(String tableName, List<VectorSchemaRoot> indicesRoots,
+            List<VectorSchemaRoot> indptrRoots, String srcTableName, String dstTableName,
+            String dstColumnName, BufferAllocator allocator) {
+        checkNotDestroyed();
+        try (ArrowSchema indicesSchema = ArrowSchema.allocateNew(allocator);
+                ArrowArrays indicesArrays = ArrowUtil.exportRoots(allocator, indicesRoots,
+                        indicesSchema);
+                ArrowSchema indptrSchema = ArrowSchema.allocateNew(allocator);
+                ArrowArrays indptrArrays = ArrowUtil.exportRoots(allocator, indptrRoots,
+                        indptrSchema)) {
+            return Native.lbugConnectionCreateArrowRelTableCSR(this, tableName, srcTableName,
+                    dstTableName, indicesSchema.memoryAddress(), indicesArrays.address(),
+                    indicesRoots.size(), indptrSchema.memoryAddress(), indptrArrays.address(),
+                    indptrRoots.size(), dstColumnName);
+        }
+    }
+
+    /**
+     * Drops an Arrow memory-backed table registered on this connection.
+     */
+    public QueryResult dropArrowTable(String tableName) {
+        checkNotDestroyed();
+        return Native.lbugConnectionDropArrowTable(this, tableName);
     }
 }

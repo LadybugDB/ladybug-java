@@ -75,7 +75,15 @@ public class Native {
     // Database
     protected static native long lbugDatabaseInit(String databasePath, long bufferPoolSize,
             boolean enableCompression, boolean readOnly, long maxDbSize, boolean autoCheckpoint,
-            long checkpointThreshold,boolean throwOnWalReplayFailure, boolean enableChecksums);
+            long checkpointThreshold, boolean throwOnWalReplayFailure, boolean enableChecksums);
+
+    // TODO: Collapse this back into lbugDatabaseInit after published main-repo
+    // Java native artifacts have been rebuilt with the extended system_config fields.
+    protected static native long lbugDatabaseInitExtended(String databasePath, long bufferPoolSize,
+            long maxNumThreads,
+            boolean enableCompression, boolean readOnly, long maxDbSize, boolean autoCheckpoint,
+            long checkpointThreshold, boolean throwOnWalReplayFailure, boolean enableChecksums,
+            boolean enableMultiWrites, boolean enableDefaultHashIndex);
 
     protected static native void lbugDatabaseDestroy(Database db);
 
@@ -104,10 +112,27 @@ public class Native {
     protected static native void lbugConnectionSetQueryTimeout(
             Connection connection, long timeoutInMs);
 
+    protected static native QueryResult lbugConnectionCreateArrowTable(Connection connection,
+            String tableName, long arrowSchemaAddress, long arrowArraysAddress, long numArrays);
+
+    protected static native QueryResult lbugConnectionCreateArrowRelTable(Connection connection,
+            String tableName, String srcTableName, String dstTableName, long arrowSchemaAddress,
+            long arrowArraysAddress, long numArrays);
+
+    protected static native QueryResult lbugConnectionCreateArrowRelTableCSR(Connection connection,
+            String tableName, String srcTableName, String dstTableName, long indicesSchemaAddress,
+            long indicesArraysAddress, long numIndicesArrays, long indptrSchemaAddress,
+            long indptrArraysAddress, long numIndptrArrays, String dstColumnName);
+
+    protected static native QueryResult lbugConnectionDropArrowTable(Connection connection,
+            String tableName);
+
     // PreparedStatement
     protected static native void lbugPreparedStatementDestroy(PreparedStatement preparedStatement);
 
     protected static native boolean lbugPreparedStatementIsSuccess(PreparedStatement preparedStatement);
+
+    protected static native boolean lbugPreparedStatementIsReadOnly(PreparedStatement preparedStatement);
 
     protected static native String lbugPreparedStatementGetErrorMessage(
             PreparedStatement preparedStatement);
@@ -141,6 +166,12 @@ public class Native {
     protected static native String lbugQueryResultToString(QueryResult queryResult);
 
     protected static native void lbugQueryResultResetIterator(QueryResult queryResult);
+
+    protected static native void lbugQueryResultGetArrowSchema(QueryResult queryResult,
+            long arrowSchemaAddress);
+
+    protected static native void lbugQueryResultGetNextArrowChunk(QueryResult queryResult,
+            long chunkSize, long arrowArrayAddress);
 
     // FlatTuple
     protected static native void lbugFlatTupleDestroy(FlatTuple flatTuple);
@@ -204,6 +235,10 @@ public class Native {
 
     protected static native Value lbugValueGetMapValue(Value value, long index);
 
+    protected static native Value lbugValueGetRecursiveRelNodeList(Value value);
+
+    protected static native Value lbugValueGetRecursiveRelRelList(Value value);
+
     protected static native DataType lbugValueGetDataType(Value value);
 
     protected static native <T> T lbugValueGetValue(Value value);
@@ -243,6 +278,12 @@ public class Native {
     protected static native String lbugValueGetStructFieldName(Value structVal, long index);
 
     protected static native long lbugValueGetStructIndex(Value structVal, String fieldName);
+
+    protected static native long lbugArrowArrayAllocate(long numArrays);
+
+    protected static native long lbugArrowArrayGetAddress(long arrowArraysAddress, long index);
+
+    protected static native void lbugArrowArrayFree(long arrowArraysAddress);
 
     protected static native String lbugGetVersion();
 

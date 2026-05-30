@@ -13,7 +13,13 @@ public class ValueRecursiveRelUtil {
      *                                     destroyed.
      */
     public static Value getNodeList(Value value) {
-        return new LbugStruct(value).getValueByIndex(0);
+        value.checkNotDestroyed();
+        try {
+            return Native.lbugValueGetRecursiveRelNodeList(value);
+        } catch (UnsatisfiedLinkError e) {
+            // TODO: Remove after published native artifacts include recursive-rel accessors.
+            return new LbugStruct(value).getValueByIndex(0);
+        }
     }
 
     /**
@@ -25,6 +31,12 @@ public class ValueRecursiveRelUtil {
      *                                     destroyed.
      */
     public static Value getRelList(Value value) {
-        return new LbugStruct(value).getValueByIndex(1);
+        value.checkNotDestroyed();
+        try {
+            return Native.lbugValueGetRecursiveRelRelList(value);
+        } catch (UnsatisfiedLinkError e) {
+            // TODO: Remove after published native artifacts include recursive-rel accessors.
+            return new LbugStruct(value).getValueByIndex(1);
+        }
     }
 }

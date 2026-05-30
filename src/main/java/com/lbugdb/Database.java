@@ -15,6 +15,9 @@ public class Database implements AutoCloseable {
     boolean autoCheckpoint = true;
     boolean throwOnWalReplayFailure = true;
     boolean enableChecksums = true;
+    boolean enableMultiWrites = false;
+    boolean enableDefaultHashIndex = true;
+    long max_num_threads;
     long checkpointThreshold;
 
     /**
@@ -34,10 +37,26 @@ public class Database implements AutoCloseable {
     public Database(String databasePath) {
         this.db_path = databasePath;
         this.buffer_size = 0;
+        this.max_num_threads = 0;
         this.max_db_size = 0;
         this.checkpointThreshold = -1;
-        db_ref = Native.lbugDatabaseInit(databasePath, 0, true, false, max_db_size, autoCheckpoint,
-                checkpointThreshold, throwOnWalReplayFailure, enableChecksums);
+        db_ref = Native.lbugDatabaseInit(databasePath, 0, true, false, max_db_size,
+                autoCheckpoint, checkpointThreshold, throwOnWalReplayFailure, enableChecksums);
+    }
+
+    /**
+     * Creates a database object.
+     *
+     * @param databasePath: Database path. If the path is empty, or equal to
+     *                      `:memory:`, the database will be created in memory.
+     * @param systemConfig: Runtime database configuration.
+     */
+    public Database(String databasePath, SystemConfig systemConfig) {
+        this(databasePath, systemConfig.bufferPoolSize, systemConfig.maxNumThreads,
+                systemConfig.enableCompression, systemConfig.readOnly, systemConfig.maxDBSize,
+                systemConfig.autoCheckpoint, systemConfig.checkpointThreshold,
+                systemConfig.throwOnWalReplayFailure, systemConfig.enableChecksums,
+                systemConfig.enableMultiWrites, systemConfig.enableDefaultHashIndex);
     }
 
     /**
@@ -71,6 +90,7 @@ public class Database implements AutoCloseable {
             long maxDBSize, boolean autoCheckpoint, long checkpointThreshold, boolean throwOnWalReplayFailure, boolean enableChecksums) {
         this.db_path = databasePath;
         this.buffer_size = bufferPoolSize;
+        this.max_num_threads = 0;
         this.enableCompression = enableCompression;
         this.readOnly = readOnly;
         this.max_db_size = maxDBSize;
@@ -78,8 +98,48 @@ public class Database implements AutoCloseable {
         this.checkpointThreshold = checkpointThreshold;
         this.throwOnWalReplayFailure = throwOnWalReplayFailure;
         this.enableChecksums = enableChecksums;
-        db_ref = Native.lbugDatabaseInit(databasePath, bufferPoolSize, enableCompression, readOnly, maxDBSize,
-                autoCheckpoint, checkpointThreshold, throwOnWalReplayFailure, enableChecksums);
+        db_ref = Native.lbugDatabaseInit(databasePath, bufferPoolSize, enableCompression, readOnly,
+                maxDBSize, autoCheckpoint, checkpointThreshold, throwOnWalReplayFailure,
+                enableChecksums);
+    }
+
+    /**
+     * Creates a database object.
+     *
+     * @param databasePath             Database path. If the path is empty, or equal to
+     *                                 `:memory:`, the database will be created in memory.
+     * @param bufferPoolSize           Max size of the buffer pool in bytes.
+     * @param maxNumThreads            The maximum number of threads available to the database.
+     * @param enableCompression        Enable compression in storage.
+     * @param readOnly                 Open the database in READ_ONLY mode.
+     * @param maxDBSize                The maximum size of the database in bytes.
+     * @param autoCheckpoint           If true, the database will automatically checkpoint.
+     * @param checkpointThreshold      The threshold of the WAL file size in bytes.
+     * @param throwOnWalReplayFailure  If true, WAL replay failures raise an error.
+     * @param enableChecksums          If true, WAL and storage page checksums are enabled.
+     * @param enableMultiWrites        If true, multiple concurrent write transactions are allowed.
+     * @param enableDefaultHashIndex   If true, node tables create the default primary-key hash index.
+     */
+    public Database(String databasePath, long bufferPoolSize, long maxNumThreads,
+            boolean enableCompression, boolean readOnly, long maxDBSize, boolean autoCheckpoint,
+            long checkpointThreshold, boolean throwOnWalReplayFailure, boolean enableChecksums,
+            boolean enableMultiWrites, boolean enableDefaultHashIndex) {
+        this.db_path = databasePath;
+        this.buffer_size = bufferPoolSize;
+        this.max_num_threads = maxNumThreads;
+        this.enableCompression = enableCompression;
+        this.readOnly = readOnly;
+        this.max_db_size = maxDBSize;
+        this.autoCheckpoint = autoCheckpoint;
+        this.checkpointThreshold = checkpointThreshold;
+        this.throwOnWalReplayFailure = throwOnWalReplayFailure;
+        this.enableChecksums = enableChecksums;
+        this.enableMultiWrites = enableMultiWrites;
+        this.enableDefaultHashIndex = enableDefaultHashIndex;
+        db_ref = Native.lbugDatabaseInitExtended(databasePath, bufferPoolSize, maxNumThreads,
+                enableCompression, readOnly, maxDBSize, autoCheckpoint, checkpointThreshold,
+                throwOnWalReplayFailure, enableChecksums, enableMultiWrites,
+                enableDefaultHashIndex);
     }
 
     /**

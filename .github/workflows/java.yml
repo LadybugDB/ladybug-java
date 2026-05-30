@@ -17,7 +17,7 @@ jobs:
     name: Build and test
     strategy:
       matrix:
-        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-14]
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-latest]
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -35,10 +35,7 @@ jobs:
 
       - name: Prepare test datasets
         run: |
-          git clone --depth 1 https://github.com/LadybugDB/go-ladybug ../go-ladybug
-          mkdir -p ../../dataset/tinysnb ../../dataset/tinysnb-serial
-          cp -R ../go-ladybug/dataset/tinysnb/. ../../dataset/tinysnb/
-          cp ../go-ladybug/dataset/tinysnb/vMoviesSerial.csv ../../dataset/tinysnb-serial/vMovies.csv
+          git clone --depth 1 https://github.com/ladybugdb/dataset.git ./dataset
 
       - name: Build
         env:

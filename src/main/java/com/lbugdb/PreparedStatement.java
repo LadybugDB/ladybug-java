@@ -50,6 +50,17 @@ public class PreparedStatement implements AutoCloseable {
     }
 
     /**
+     * Check if the query is read-only.
+     *
+     * @return The query is read-only or not.
+     * @throws RuntimeException If the prepared statement has been destroyed.
+     */
+    public boolean isReadOnly() {
+        checkNotDestroyed();
+        return Native.lbugPreparedStatementIsReadOnly(this);
+    }
+
+    /**
      * Get the error message if the query is not prepared successfully.
      *
      * @return The error message if the query is not prepared successfully.

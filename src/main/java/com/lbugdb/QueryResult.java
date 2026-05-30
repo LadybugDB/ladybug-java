@@ -1,5 +1,10 @@
 package com.ladybugdb;
 
+import org.apache.arrow.c.ArrowArray;
+import org.apache.arrow.c.ArrowSchema;
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.VectorSchemaRoot;
+
 /**
  * QueryResult stores the result of a query execution.
  */
@@ -193,5 +198,29 @@ public class QueryResult implements AutoCloseable {
     public void resetIterator() {
         checkNotDestroyed();
         Native.lbugQueryResultResetIterator(this);
+    }
+
+    /**
+     * Returns the query result schema as an Arrow VectorSchemaRoot with no loaded rows.
+     */
+    public VectorSchemaRoot getArrowSchema(BufferAllocator allocator) {
+        checkNotDestroyed();
+        try (ArrowSchema schema = ArrowSchema.allocateNew(allocator)) {
+            Native.lbugQueryResultGetArrowSchema(this, schema.memoryAddress());
+            return ArrowUtil.importRoot(allocator, schema, null);
+        }
+    }
+
+    /**
+     * Returns the next chunk of the query result as an Arrow VectorSchemaRoot.
+     */
+    public VectorSchemaRoot getNextArrowChunk(long chunkSize, BufferAllocator allocator) {
+        checkNotDestroyed();
+        try (ArrowSchema schema = ArrowSchema.allocateNew(allocator);
+                ArrowArray array = ArrowArray.allocateNew(allocator)) {
+            Native.lbugQueryResultGetArrowSchema(this, schema.memoryAddress());
+            Native.lbugQueryResultGetNextArrowChunk(this, chunkSize, array.memoryAddress());
+            return ArrowUtil.importRoot(allocator, schema, array);
+        }
     }
 }

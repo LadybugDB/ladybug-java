@@ -524,6 +524,19 @@ void bindJavaParamsToPreparedStatement(JNIEnv* env, lbug_prepared_statement* pre
     }
 }
 
+void throwLastError(JNIEnv* env, const char* fallback) {
+    if (auto* errorMessage = lbug_get_last_error()) {
+        throwJNIException(env, errorMessage);
+        free(errorMessage);
+    } else {
+        throwJNIException(env, fallback);
+    }
+}
+
+jobject createQueryResultObject(JNIEnv* env, lbug_query_result* queryResult) {
+    return createJavaObject(env, queryResult, J_C_QueryResult, J_C_QueryResult_F_qr_ref);
+}
+
 /**
  * All Database native functions
  */
@@ -550,15 +563,19 @@ JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugNativeReloadLibrary(JNIEnv*
     }
 }
 
-JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugDatabaseInit(JNIEnv* env, jclass,
-    jstring databasePath, jlong bufferPoolSize, jboolean enableCompression, jboolean readOnly,
-    jlong maxDbSize, jboolean autoCheckpoint, jlong checkpointThreshold,
-    jboolean throwOnWalReplayFailure, jboolean enableChecksums) {
+JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugDatabaseInitExtended(JNIEnv* env, jclass,
+    jstring databasePath, jlong bufferPoolSize, jlong maxNumThreads, jboolean enableCompression,
+    jboolean readOnly, jlong maxDbSize, jboolean autoCheckpoint, jlong checkpointThreshold,
+    jboolean throwOnWalReplayFailure, jboolean enableChecksums, jboolean enableMultiWrites,
+    jboolean enableDefaultHashIndex) {
     try {
         const char* path = env->GetStringUTFChars(databasePath, JNI_FALSE);
         auto systemConfig = lbug_default_system_config();
         if (bufferPoolSize != 0) {
             systemConfig.buffer_pool_size = static_cast<uint64_t>(bufferPoolSize);
+        }
+        if (maxNumThreads != 0) {
+            systemConfig.max_num_threads = static_cast<uint64_t>(maxNumThreads);
         }
         systemConfig.enable_compression = enableCompression;
         systemConfig.read_only = readOnly;
@@ -578,6 +595,8 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugDatabaseInit(JNIEnv* env, 
         }
         systemConfig.throw_on_wal_replay_failure = throwOnWalReplayFailure;
         systemConfig.enable_checksums = enableChecksums;
+        systemConfig.enable_multi_writes = enableMultiWrites;
+        systemConfig.enable_default_hash_index = enableDefaultHashIndex;
         try {
             auto* db = new lbug_database();
             auto state = lbug_database_init(path, systemConfig, db);
@@ -603,6 +622,15 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugDatabaseInit(JNIEnv* env, 
         throwJNIException(env, "Unknown Error");
     }
     return 0;
+}
+
+JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugDatabaseInit(JNIEnv* env, jclass clazz,
+    jstring databasePath, jlong bufferPoolSize, jboolean enableCompression, jboolean readOnly,
+    jlong maxDbSize, jboolean autoCheckpoint, jlong checkpointThreshold,
+    jboolean throwOnWalReplayFailure, jboolean enableChecksums) {
+    return Java_com_ladybugdb_Native_lbugDatabaseInitExtended(env, clazz, databasePath,
+        bufferPoolSize, 0, enableCompression, readOnly, maxDbSize, autoCheckpoint,
+        checkpointThreshold, throwOnWalReplayFailure, enableChecksums, false, true);
 }
 
 JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugDatabaseDestroy(JNIEnv* env, jclass,
@@ -792,6 +820,118 @@ JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugConnectionSetQueryTimeout(J
     }
 }
 
+JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionCreateArrowTable(JNIEnv* env,
+    jclass, jobject thisConn, jstring tableName, jlong arrowSchemaAddress, jlong arrowArraysAddress,
+    jlong numArrays) {
+    try {
+        auto* conn = getConnection(env, thisConn);
+        std::string table = jstringToUtf8String(env, tableName);
+        auto* schema = reinterpret_cast<ArrowSchema*>(static_cast<uintptr_t>(arrowSchemaAddress));
+        auto* arrays = reinterpret_cast<ArrowArray*>(static_cast<uintptr_t>(arrowArraysAddress));
+        auto* queryResult = new lbug_query_result();
+        auto state = lbug_connection_create_arrow_table(conn, table.c_str(), schema, arrays,
+            static_cast<uint64_t>(numArrays), queryResult);
+        if (state != LbugSuccess) {
+            delete queryResult;
+            throwLastError(env, "Failed to create Arrow table");
+            return jobject();
+        }
+        return createQueryResultObject(env, queryResult);
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
+    return jobject();
+}
+
+JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionCreateArrowRelTable(JNIEnv* env,
+    jclass, jobject thisConn, jstring tableName, jstring srcTableName, jstring dstTableName,
+    jlong arrowSchemaAddress, jlong arrowArraysAddress, jlong numArrays) {
+    try {
+        auto* conn = getConnection(env, thisConn);
+        std::string table = jstringToUtf8String(env, tableName);
+        std::string srcTable = jstringToUtf8String(env, srcTableName);
+        std::string dstTable = jstringToUtf8String(env, dstTableName);
+        auto* schema = reinterpret_cast<ArrowSchema*>(static_cast<uintptr_t>(arrowSchemaAddress));
+        auto* arrays = reinterpret_cast<ArrowArray*>(static_cast<uintptr_t>(arrowArraysAddress));
+        auto* queryResult = new lbug_query_result();
+        auto state = lbug_connection_create_arrow_rel_table(conn, table.c_str(), srcTable.c_str(),
+            dstTable.c_str(), schema, arrays, static_cast<uint64_t>(numArrays), queryResult);
+        if (state != LbugSuccess) {
+            delete queryResult;
+            throwLastError(env, "Failed to create Arrow relationship table");
+            return jobject();
+        }
+        return createQueryResultObject(env, queryResult);
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
+    return jobject();
+}
+
+JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionCreateArrowRelTableCSR(
+    JNIEnv* env, jclass, jobject thisConn, jstring tableName, jstring srcTableName,
+    jstring dstTableName, jlong indicesSchemaAddress, jlong indicesArraysAddress,
+    jlong numIndicesArrays, jlong indptrSchemaAddress, jlong indptrArraysAddress,
+    jlong numIndptrArrays, jstring dstColumnName) {
+    try {
+        auto* conn = getConnection(env, thisConn);
+        std::string table = jstringToUtf8String(env, tableName);
+        std::string srcTable = jstringToUtf8String(env, srcTableName);
+        std::string dstTable = jstringToUtf8String(env, dstTableName);
+        std::string dstColumn = jstringToUtf8String(env, dstColumnName);
+        auto* indicesSchema =
+            reinterpret_cast<ArrowSchema*>(static_cast<uintptr_t>(indicesSchemaAddress));
+        auto* indicesArrays =
+            reinterpret_cast<ArrowArray*>(static_cast<uintptr_t>(indicesArraysAddress));
+        auto* indptrSchema =
+            reinterpret_cast<ArrowSchema*>(static_cast<uintptr_t>(indptrSchemaAddress));
+        auto* indptrArrays =
+            reinterpret_cast<ArrowArray*>(static_cast<uintptr_t>(indptrArraysAddress));
+        auto* queryResult = new lbug_query_result();
+        auto* dstColumnPtr = dstColumn.empty() ? nullptr : dstColumn.c_str();
+        auto state = lbug_connection_create_arrow_rel_table_csr(conn, table.c_str(),
+            srcTable.c_str(), dstTable.c_str(), indicesSchema, indicesArrays,
+            static_cast<uint64_t>(numIndicesArrays), indptrSchema, indptrArrays,
+            static_cast<uint64_t>(numIndptrArrays), dstColumnPtr, queryResult);
+        if (state != LbugSuccess) {
+            delete queryResult;
+            throwLastError(env, "Failed to create Arrow CSR relationship table");
+            return jobject();
+        }
+        return createQueryResultObject(env, queryResult);
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
+    return jobject();
+}
+
+JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionDropArrowTable(JNIEnv* env,
+    jclass, jobject thisConn, jstring tableName) {
+    try {
+        auto* conn = getConnection(env, thisConn);
+        std::string table = jstringToUtf8String(env, tableName);
+        auto* queryResult = new lbug_query_result();
+        auto state = lbug_connection_drop_arrow_table(conn, table.c_str(), queryResult);
+        if (state != LbugSuccess) {
+            delete queryResult;
+            throwLastError(env, "Failed to drop Arrow table");
+            return jobject();
+        }
+        return createQueryResultObject(env, queryResult);
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
+    return jobject();
+}
+
 /**
  * All PreparedStatement native functions
  */
@@ -814,6 +954,19 @@ JNIEXPORT jboolean JNICALL Java_com_ladybugdb_Native_lbugPreparedStatementIsSucc
     try {
         auto* ps = getPreparedStatement(env, thisPS);
         return static_cast<jboolean>(lbug_prepared_statement_is_success(ps));
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
+    return jboolean();
+}
+
+JNIEXPORT jboolean JNICALL Java_com_ladybugdb_Native_lbugPreparedStatementIsReadOnly(JNIEnv* env,
+    jclass, jobject thisPS) {
+    try {
+        auto* ps = getPreparedStatement(env, thisPS);
+        return static_cast<jboolean>(lbug_prepared_statement_is_read_only(ps));
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1054,6 +1207,35 @@ JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugQueryResultResetIterator(JN
     try {
         auto* qr = getQueryResult(env, thisQR);
         lbug_query_result_reset_iterator(qr);
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
+}
+
+JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetArrowSchema(JNIEnv* env, jclass,
+    jobject thisQR, jlong arrowSchemaAddress) {
+    try {
+        auto* qr = getQueryResult(env, thisQR);
+        auto* schema = reinterpret_cast<ArrowSchema*>(static_cast<uintptr_t>(arrowSchemaAddress));
+        throwIfError(lbug_query_result_get_arrow_schema(qr, schema),
+            "Failed to get Arrow schema");
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
+}
+
+JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugQueryResultGetNextArrowChunk(JNIEnv* env,
+    jclass, jobject thisQR, jlong chunkSize, jlong arrowArrayAddress) {
+    try {
+        auto* qr = getQueryResult(env, thisQR);
+        auto* array = reinterpret_cast<ArrowArray*>(static_cast<uintptr_t>(arrowArrayAddress));
+        throwIfError(lbug_query_result_get_next_arrow_chunk(qr, static_cast<int64_t>(chunkSize),
+                         array),
+            "Failed to get next Arrow chunk");
     } catch (const Exception& e) {
         throwJNIException(env, e.what());
     } catch (...) {
@@ -1595,6 +1777,46 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetMapValue(JNIEnv*
             return nullptr;
         }
         jobject result = createJavaObject(env, value, J_C_Value, J_C_Value_F_v_ref);
+        env->SetBooleanField(result, J_C_Value_F_isOwnedByCPP, static_cast<jboolean>(true));
+        return result;
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
+    return jobject();
+}
+
+JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetRecursiveRelNodeList(JNIEnv* env,
+    jclass, jobject thisValue) {
+    try {
+        auto* v = getValue(env, thisValue);
+        auto* nodes = new lbug_value();
+        if (lbug_value_get_recursive_rel_node_list(v, nodes) != LbugSuccess) {
+            delete nodes;
+            return nullptr;
+        }
+        jobject result = createJavaObject(env, nodes, J_C_Value, J_C_Value_F_v_ref);
+        env->SetBooleanField(result, J_C_Value_F_isOwnedByCPP, static_cast<jboolean>(true));
+        return result;
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
+    return jobject();
+}
+
+JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugValueGetRecursiveRelRelList(JNIEnv* env,
+    jclass, jobject thisValue) {
+    try {
+        auto* v = getValue(env, thisValue);
+        auto* rels = new lbug_value();
+        if (lbug_value_get_recursive_rel_rel_list(v, rels) != LbugSuccess) {
+            delete rels;
+            return nullptr;
+        }
+        jobject result = createJavaObject(env, rels, J_C_Value, J_C_Value_F_v_ref);
         env->SetBooleanField(result, J_C_Value_F_isOwnedByCPP, static_cast<jboolean>(true));
         return result;
     } catch (const Exception& e) {
@@ -2191,6 +2413,50 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugValueGetStructIndex(JNIEnv
         throwJNIException(env, "Unknown Error");
     }
     return jlong();
+}
+
+JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugArrowArrayAllocate(JNIEnv* env, jclass,
+    jlong numArrays) {
+    try {
+        if (numArrays <= 0) {
+            throw NotImplementedException("Number of Arrow arrays must be positive");
+        }
+        auto* arrays = new ArrowArray[static_cast<uint64_t>(numArrays)]();
+        return static_cast<jlong>(reinterpret_cast<uint64_t>(arrays));
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
+    return 0;
+}
+
+JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugArrowArrayGetAddress(JNIEnv* env, jclass,
+    jlong arrowArraysAddress, jlong index) {
+    try {
+        if (index < 0) {
+            throw NotImplementedException("Arrow array index must be non-negative");
+        }
+        auto* arrays = reinterpret_cast<ArrowArray*>(static_cast<uintptr_t>(arrowArraysAddress));
+        return static_cast<jlong>(reinterpret_cast<uint64_t>(&arrays[index]));
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
+    return 0;
+}
+
+JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugArrowArrayFree(JNIEnv* env, jclass,
+    jlong arrowArraysAddress) {
+    try {
+        auto* arrays = reinterpret_cast<ArrowArray*>(static_cast<uintptr_t>(arrowArraysAddress));
+        delete[] arrays;
+    } catch (const Exception& e) {
+        throwJNIException(env, e.what());
+    } catch (...) {
+        throwJNIException(env, "Unknown Error");
+    }
 }
 
 JNIEXPORT jstring JNICALL Java_com_ladybugdb_Native_lbugGetVersion(JNIEnv* env, jclass) {

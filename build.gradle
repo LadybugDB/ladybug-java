@@ -36,8 +36,12 @@ repositories {
 }
 
 dependencies {
+    implementation 'org.apache.arrow:arrow-c-data:18.2.0'
+    implementation 'org.apache.arrow:arrow-vector:18.2.0'
+    implementation 'org.apache.arrow:arrow-memory-core:18.2.0'
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.apache.arrow:arrow-memory-netty:18.2.0'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
