@@ -1,0 +1,45 @@
+name: Android Kotlin
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 8 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-kotlin-app:
+    name: Build Android Kotlin app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Build Ladybug Java jar
+        env:
+          SKIP_CMAKE_BUILD: "true"
+        run: |
+          ./gradlew jar
+          echo "LBUG_JAR=$(ls "$GITHUB_WORKSPACE"/build/libs/lbug-*.jar | head -n 1)" >> "$GITHUB_ENV"
+
+      - name: Build Android Kotlin example
+        run: ./gradlew -p examples/android-kotlin :app:assembleDebug -PlbugJar="$LBUG_JAR"
+
+      - name: Test Android Kotlin example on emulator
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          script: ./gradlew -p examples/android-kotlin :app:connectedDebugAndroidTest -PlbugJar="$LBUG_JAR"
