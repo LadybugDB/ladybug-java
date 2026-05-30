@@ -11,14 +11,22 @@ java {
 
 group = 'com.ladybugdb'
 def projectRoot = projectDir.parentFile.parentFile
-def cmakeFile = new File(projectRoot, 'CMakeLists.txt').text
-def versionLine = cmakeFile.readLines().find { it.startsWith('project(Lbug VERSION ') }
-def cmakeVersion = versionLine.split(' ')[2]
-def versionParts = cmakeVersion.split('\\.')
-if (versionParts.length > 3) {
-    version = versionParts[0] + '.' + versionParts[1] + '.' + versionParts[2] + '-SNAPSHOT'
+def cmakeFileRef = new File(projectRoot, 'CMakeLists.txt')
+if (!cmakeFileRef.exists()) {
+    cmakeFileRef = new File(projectDir.parentFile, 'ladybug/CMakeLists.txt')
+}
+if (cmakeFileRef.exists()) {
+    def cmakeFile = cmakeFileRef.text
+    def versionLine = cmakeFile.readLines().find { it.startsWith('project(Lbug VERSION ') }
+    def cmakeVersion = versionLine.split(' ')[2]
+    def versionParts = cmakeVersion.split('\\.')
+    if (versionParts.length > 3) {
+        version = versionParts[0] + '.' + versionParts[1] + '.' + versionParts[2] + '-SNAPSHOT'
+    } else {
+        version = cmakeVersion
+    }
 } else {
-    version = cmakeVersion
+    version = providers.environmentVariable('LBUG_JAVA_VERSION').orElse('0.0.0-SNAPSHOT').get()
 }
 
 println "Project version: $version"
