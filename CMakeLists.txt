@@ -17,8 +17,63 @@ include(UseJava)
 
 file(GLOB JAVA_SRC_FILES src/main/java/com/lbugdb/*.java)
 
+# The Java sources import Apache Arrow classes (org.apache.arrow.c.*,
+# org.apache.arrow.memory.*, org.apache.arrow.vector.*). When the Java
+# sources are compiled through Gradle, these are pulled in from Maven
+# Central via the dependencies block in build.gradle. The CMake build path
+# (used by `make java` and the per-platform native lib CI job) does not go
+# through Gradle, so we need to resolve the same JARs here. Versions are kept
+# in sync with build.gradle.
+set(LBUG_MAVEN_ARTIFACTS
+    "org.apache.arrow:arrow-c-data:18.2.0"
+    "org.apache.arrow:arrow-vector:18.2.0"
+    "org.apache.arrow:arrow-memory-core:18.2.0"
+    "org.apache.arrow:arrow-format:18.2.0"
+    "com.google.flatbuffers:flatbuffers-java:24.3.25"
+)
+
+# Download a single Maven artifact JAR into a local cache directory.
+# Args:
+#   out_var     - output variable to receive the path to the downloaded JAR
+#   group_id    - Maven group ID (e.g., org.apache.arrow)
+#   artifact_id - Maven artifact ID (e.g., arrow-c-data)
+#   version     - Maven version (e.g., 18.2.0)
+function(lbug_download_maven_jar out_var group_id artifact_id version)
+    string(REPLACE "." "/" group_path "${group_id}")
+    set(jar_name "${artifact_id}-${version}.jar")
+    set(url "https://repo1.maven.org/maven2/${group_path}/${artifact_id}/${version}/${jar_name}")
+    set(local_path "${CMAKE_CURRENT_BINARY_DIR}/maven_cache/${jar_name}")
+    if(NOT EXISTS "${local_path}")
+        message(STATUS "Downloading ${group_id}:${artifact_id}:${version}")
+        file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/maven_cache")
+        file(DOWNLOAD "${url}" "${local_path}"
+            STATUS download_status
+            LOG download_log
+            TLS_VERIFY ON)
+        list(GET download_status 0 status_code)
+        list(GET download_status 1 error_msg)
+        if(NOT status_code EQUAL 0)
+            message(FATAL_ERROR
+                "Failed to download Maven artifact ${group_id}:${artifact_id}:${version} "
+                "from ${url}: ${error_msg}")
+        endif()
+    endif()
+    set(${out_var} "${local_path}" PARENT_SCOPE)
+endfunction()
+
+set(LBUG_MAVEN_JARS "")
+foreach(artifact_spec IN LISTS LBUG_MAVEN_ARTIFACTS)
+    string(REPLACE ":" ";" spec_parts "${artifact_spec}")
+    list(GET spec_parts 0 spec_group)
+    list(GET spec_parts 1 spec_artifact)
+    list(GET spec_parts 2 spec_version)
+    lbug_download_maven_jar(jar_path "${spec_group}" "${spec_artifact}" "${spec_version}")
+    list(APPEND LBUG_MAVEN_JARS "${jar_path}")
+endforeach()
+
 set(CMAKE_JAVA_COMPILE_FLAGS -source 1.8 -target 1.8 -encoding utf-8)
 add_jar(lbug_java ${JAVA_SRC_FILES}
+    INCLUDE_JARS ${LBUG_MAVEN_JARS}
     OUTPUT_DIR "${PROJECT_SOURCE_DIR}/build"
     GENERATE_NATIVE_HEADERS lbug_native_header)
 get_target_property(_jarFile lbug_java JAR_FILE)
