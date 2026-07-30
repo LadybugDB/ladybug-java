@@ -173,4 +173,40 @@ public class PreparedStatementTest extends TestBase {
         }
     }
 
+    @Test
+    void executeWithNullParamThrows() {
+        // After the refactor, nulls are caught on the Java side with a clear
+        // error message naming the offending key, instead of crashing inside
+        // the JNI conversion ladder.
+        String query = "MATCH (n:person) WHERE n.fName = $1 RETURN n.fName";
+        try (PreparedStatement ps = conn.prepare(query)) {
+            Map<String, Object> raw = new HashMap<>();
+            raw.put("1", null);
+            @SuppressWarnings("unchecked")
+            Map<String, ?> params = (Map<String, ?>) (Map<?, ?>) raw;
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
+                conn.execute(ps, params);
+            });
+            assertTrue(ex.getMessage().contains("'1'"),
+                "exception should name the offending key, got: " + ex.getMessage());
+        }
+    }
+
+    @Test
+    void executeWithValueCreateNullParam() {
+        // Value.createNull() is the explicit way to bind a SQL NULL; it should
+        // round-trip cleanly through the new coercion path.
+        String query = "MATCH (n:person) WHERE n.fName = $1 RETURN n.fName";
+        try (PreparedStatement ps = conn.prepare(query)) {
+            Map<String, Object> raw = new HashMap<>();
+            raw.put("1", Value.createNull());
+            @SuppressWarnings("unchecked")
+            Map<String, ?> params = (Map<String, ?>) (Map<?, ?>) raw;
+            QueryResult result = conn.execute(ps, params);
+            assertTrue(result.isSuccess());
+            // SQL NULL never matches n.fName, so no rows.
+            assertFalse(result.hasNext());
+        }
+    }
+
 }
