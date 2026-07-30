@@ -107,15 +107,24 @@ public class Connection implements AutoCloseable {
     /**
      * Executes the given prepared statement with args and returns the result.
      *
-     * @param ps: The prepared statement to execute.
-     * @param m:  The parameter pack where each arg is a std::pair with the first element being parameter name and second
-     *            element being parameter value
+     * <p>Values that are not already {@link Value} instances are automatically converted from
+     * their boxed Java type (e.g. {@link String}, {@link Long}, {@link java.util.UUID}, etc.).
+     * If a value's type is not supported, an {@link IllegalArgumentException} is thrown instead
+     * of crashing the JVM.
+     *
+     * @param ps The prepared statement to execute.
+     * @param params The parameter map. Each value must be a {@link Value} or one of the
+     *               supported boxed types: Boolean, Byte, Short, Integer, Long, BigInteger,
+     *               Float, Double, BigDecimal, String, InternalID, UUID, LocalDate, Instant,
+     *               Duration.
      * @return The result of the query.
-     * @throws RuntimeException If the connection has been destroyed.
+     * @throws RuntimeException         If the connection has been destroyed.
+     * @throws IllegalArgumentException  If a parameter value has an unsupported type.
      */
-    public QueryResult execute(PreparedStatement ps, Map<String, Value> m) {
+    @SuppressWarnings("unchecked")
+    public QueryResult execute(PreparedStatement ps, Map<String, ?> params) {
         checkNotDestroyed();
-        return Native.lbugConnectionExecute(this, ps, m);
+        return Native.lbugConnectionExecute(this, ps, (Map<String, Value>) (Map<?, ?>) params);
     }
 
     /**
