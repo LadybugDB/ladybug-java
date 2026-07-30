@@ -8,6 +8,19 @@ plugins {
 java {
     withSourcesJar()
     withJavadocJar()
+    // Pattern-matching switch in Connection.coerceParam requires Java 21+.
+    // Keep this in sync with CMAKE_JAVA_COMPILE_FLAGS in CMakeLists.txt and
+    // the java.version / maven.compiler.{source,target} POM properties below.
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+// Kotlin must target the same JVM level as Java, otherwise Gradle refuses
+// to build (inconsistent jvm-target between compileTestJava and compileTestKotlin).
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+        jvmTarget = '21'
+    }
 }
 
 group = 'com.ladybugdb'
@@ -63,9 +76,9 @@ publishing {
                 properties = [
                         'project.build.sourceEncoding'    : 'UTF-8',
                         'project.reporting.outputEncoding': 'UTF-8',
-                        'java.version'                    : '11',
-                        'maven.compiler.source'           : '11',
-                        'maven.compiler.target'           : '11'
+                        'java.version'                    : '21',
+                        'maven.compiler.source'           : '21',
+                        'maven.compiler.target'           : '21'
                 ]
                 licenses {
                     license {

@@ -71,7 +71,7 @@ foreach(artifact_spec IN LISTS LBUG_MAVEN_ARTIFACTS)
     list(APPEND LBUG_MAVEN_JARS "${jar_path}")
 endforeach()
 
-set(CMAKE_JAVA_COMPILE_FLAGS -source 1.8 -target 1.8 -encoding utf-8)
+set(CMAKE_JAVA_COMPILE_FLAGS -source 21 -target 21 -encoding utf-8)
 add_jar(lbug_java ${JAVA_SRC_FILES}
     INCLUDE_JARS ${LBUG_MAVEN_JARS}
     OUTPUT_DIR "${PROJECT_SOURCE_DIR}/build"

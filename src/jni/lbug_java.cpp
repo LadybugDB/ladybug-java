@@ -160,14 +160,6 @@ static void throwJNIException(JNIEnv* env, const char* message) {
     env->ThrowNew(exClass, message);
 }
 
-static void throwIllegalArgumentException(JNIEnv* env, const char* message) {
-    jclass exClass = env->FindClass("java/lang/IllegalArgumentException");
-    if (exClass == nullptr) {
-        return;
-    }
-    env->ThrowNew(exClass, message);
-}
-
 template<typename... Args>
 static jobject callObjectMethodChecked(JNIEnv* env, jobject object, jmethodID method,
     Args... args) {
@@ -512,111 +504,6 @@ std::string dataTypeToString(lbug_data_type_id dataType) {
     }
 }
 
-// Convert a Java boxed primitive/String/UUID/etc. to an lbug_value*.
-// Returns nullptr if the type is not recognised.
-static lbug_value* javaObjectToValue(JNIEnv* env, jobject val) {
-    if (env->IsInstanceOf(val, J_C_Boolean)) {
-        jboolean value = callBooleanMethodChecked(env, val, J_C_Boolean_M_booleanValue);
-        return lbug_value_create_bool(static_cast<bool>(value));
-    } else if (env->IsInstanceOf(val, J_C_Byte)) {
-        jbyte value = callByteMethodChecked(env, val, J_C_Byte_M_byteValue);
-        return lbug_value_create_int8(static_cast<int8_t>(value));
-    } else if (env->IsInstanceOf(val, J_C_Short)) {
-        jshort value = callShortMethodChecked(env, val, J_C_Short_M_shortValue);
-        return lbug_value_create_int16(static_cast<int16_t>(value));
-    } else if (env->IsInstanceOf(val, J_C_Integer)) {
-        jint value = callIntMethodChecked(env, val, J_C_Integer_M_intValue);
-        return lbug_value_create_int32(static_cast<int32_t>(value));
-    } else if (env->IsInstanceOf(val, J_C_Long)) {
-        jlong value = callLongMethodChecked(env, val, J_C_Long_M_longValue);
-        return lbug_value_create_int64(static_cast<int64_t>(value));
-    } else if (env->IsInstanceOf(val, J_C_BigInteger)) {
-        int64_t lower =
-            static_cast<int64_t>(callLongMethodChecked(env, val, J_C_BigInteger_M_longValue));
-        jobject shifted = callObjectMethodChecked(env, val, J_C_BigInteger_M_shiftRight, 64);
-        int64_t upper = static_cast<int64_t>(
-            callLongMethodChecked(env, shifted, J_C_BigInteger_M_longValue));
-        return lbug_value_create_int128({.low = static_cast<uint64_t>(lower), .high = upper});
-    } else if (env->IsInstanceOf(val, J_C_Float)) {
-        jfloat value = callFloatMethodChecked(env, val, J_C_Float_M_floatValue);
-        return lbug_value_create_float(static_cast<float>(value));
-    } else if (env->IsInstanceOf(val, J_C_Double)) {
-        jdouble value = callDoubleMethodChecked(env, val, J_C_Double_M_doubleValue);
-        return lbug_value_create_double(static_cast<double>(value));
-    } else if (env->IsInstanceOf(val, J_C_BigDecimal)) {
-        jobject normalized =
-            callObjectMethodChecked(env, val, J_C_BigDecimal_M_stripTrailingZeros);
-        jstring value = static_cast<jstring>(
-            callObjectMethodChecked(env, normalized, J_C_BigDecimal_M_toString));
-        std::string str = jstringToUtf8String(env, value);
-        auto precision = static_cast<int32_t>(
-            callIntMethodChecked(env, normalized, J_C_BigDecimal_M_precision));
-        auto scale =
-            static_cast<int32_t>(callIntMethodChecked(env, normalized, J_C_BigDecimal_M_scale));
-        if (precision > JAVA_DECIMAL_PRECISION_LIMIT) {
-            throw NotImplementedException(
-                std::format("Decimal precision cannot be greater than {}"
-                            "Note: positive exponents contribute to precision",
-                    JAVA_DECIMAL_PRECISION_LIMIT));
-        }
-        return lbug_value_create_decimal(
-            str.c_str(), static_cast<uint32_t>(precision), static_cast<uint32_t>(scale));
-    } else if (env->IsInstanceOf(val, J_C_String)) {
-        jstring value = static_cast<jstring>(val);
-        std::string str = jstringToUtf8String(env, value);
-        return lbug_value_create_string(str.c_str());
-    } else if (env->IsInstanceOf(val, J_C_InternalID)) {
-        return lbug_value_create_internal_id(getInternalID(env, val));
-    } else if (env->IsInstanceOf(val, J_C_UUID)) {
-        jstring uuid =
-            static_cast<jstring>(callObjectMethodChecked(env, val, J_C_UUID_M_toString));
-        std::string uuidString = jstringToUtf8String(env, uuid);
-        return lbug_value_create_uuid(uuidString.c_str());
-    } else if (env->IsInstanceOf(val, J_C_LocalDate)) {
-        int64_t days =
-            static_cast<int64_t>(callLongMethodChecked(env, val, J_C_LocalDate_M_toEpochDay));
-        return lbug_value_create_date({.days = static_cast<int32_t>(days)});
-    } else if (env->IsInstanceOf(val, J_C_Instant)) {
-        // TODO: Need to review this for overflow
-        int64_t seconds = static_cast<int64_t>(
-            callLongMethodChecked(env, val, J_C_LocalDate_M_getEpochSecond));
-        int64_t nano =
-            static_cast<int64_t>(callLongMethodChecked(env, val, J_C_LocalDate_M_getNano));
-        int64_t micro = (seconds * 1000000L) + (nano / 1000L);
-        return lbug_value_create_timestamp({.value = micro});
-    } else if (env->IsInstanceOf(val, J_C_Duration)) {
-        auto milis = callLongMethodChecked(env, val, J_C_Duration_M_toMillis);
-        return lbug_value_create_interval({.months = 0, .days = 0, .micros = milis * 1000L});
-    }
-    return nullptr;
-}
-
-// Get the fully-qualified class name of a Java object as a std::string.
-// Returns "<unknown>" on error.
-static std::string getClassName(JNIEnv* env, jobject obj) {
-    jclass clazz = env->GetObjectClass(obj);
-    if (clazz == nullptr) return "<unknown>";
-    jclass classClass = env->FindClass("java/lang/Class");
-    if (classClass == nullptr) {
-        env->DeleteLocalRef(clazz);
-        return "<unknown>";
-    }
-    jmethodID getNameMethod =
-        env->GetMethodID(classClass, "getName", "()Ljava/lang/String;");
-    if (getNameMethod == nullptr) {
-        env->DeleteLocalRef(classClass);
-        env->DeleteLocalRef(clazz);
-        return "<unknown>";
-    }
-    jstring classNameJStr =
-        static_cast<jstring>(env->CallObjectMethod(clazz, getNameMethod));
-    std::string result = jstringToUtf8String(env, classNameJStr);
-    env->DeleteLocalRef(classNameJStr);
-    env->DeleteLocalRef(classClass);
-    env->DeleteLocalRef(clazz);
-    return result;
-}
-
 void bindJavaParamsToPreparedStatement(JNIEnv* env, lbug_prepared_statement* preparedStatement,
     jobject javaMap) {
     jobject set = callObjectMethodChecked(env, javaMap, J_C_Map_M_entrySet);
@@ -627,31 +514,23 @@ void bindJavaParamsToPreparedStatement(JNIEnv* env, lbug_prepared_statement* pre
         jobject value = callObjectMethodChecked(env, entry, J_C_Map$Entry_M_getValue);
         std::string keyStr = jstringToUtf8String(env, key);
 
-        lbug_value* clonedValue = nullptr;
-
-        if (env->IsInstanceOf(value, J_C_Value)) {
-            // Already a Value — use the direct JNI path (Option A, existing behaviour)
-            clonedValue = lbug_value_clone(getValue(env, value));
-        } else {
-            // Try conversion from a boxed Java type via the same ladder as
-            // Java_com_ladybugdb_Native_lbugValueCreateValue (Option A)
-            clonedValue = javaObjectToValue(env, value);
-            if (clonedValue == nullptr) {
-                // Not a recognised type — throw IllegalArgumentException instead
-                // of crashing (Option B)
-                std::string typeName = getClassName(env, value);
-                env->DeleteLocalRef(entry);
-                env->DeleteLocalRef(key);
-                env->DeleteLocalRef(value);
-                throwIllegalArgumentException(env,
-                    ("Parameter '" + keyStr + "' has unsupported type " + typeName
-                        + ". Accepted types: Value, Boolean, Byte, Short, Integer, "
-                          "Long, BigInteger, Float, Double, BigDecimal, String, "
-                          "InternalID, UUID, LocalDate, Instant, Duration")
-                        .c_str());
-                return;
-            }
+        // The Java side (Connection.coerceParams) guarantees that every entry
+        // is already a Value — boxed primitives are converted there before the
+        // JNI call. We keep the IsInstanceOf check as a cheap contract guard:
+        // if it ever fails, something bypassed the public API and we'd rather
+        // fail loud than reinterpret_cast into the void.
+        if (!env->IsInstanceOf(value, J_C_Value)) {
+            env->DeleteLocalRef(entry);
+            env->DeleteLocalRef(key);
+            env->DeleteLocalRef(value);
+            throwJNIException(env,
+                ("Parameter '" + keyStr
+                    + "' is not a Value — Connection.execute must be used as the entry point")
+                    .c_str());
+            return;
         }
+
+        lbug_value* clonedValue = lbug_value_clone(getValue(env, value));
 
         auto state =
             lbug_prepared_statement_bind_value(preparedStatement, keyStr.c_str(), clonedValue);
