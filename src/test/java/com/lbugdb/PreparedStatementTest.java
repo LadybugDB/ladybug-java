@@ -4,7 +4,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class PreparedStatementTest extends TestBase {
 
@@ -58,6 +59,117 @@ public class PreparedStatementTest extends TestBase {
                 String got = result.getNext().getValue(0).getValue();
                 assertTrue(got.equals("The 😂😃🧘🏻‍♂️🌍🌦️🍞🚗 movie"));
             }
+        }
+    }
+
+    @Test
+    void executeWithRawBoxedString() {
+        // Option A: raw String value auto-converted by C++ layer
+        String query = "MATCH (n:person) WHERE n.fName = $1 RETURN n.fName";
+        try (PreparedStatement ps = conn.prepare(query)) {
+            Map<String, Object> raw = new HashMap<>();
+            raw.put("1", "Alice");
+            @SuppressWarnings("unchecked")
+            Map<String, ?> params = (Map<String, ?>) (Map<?, ?>) raw;
+            QueryResult result = conn.execute(ps, params);
+            assertTrue(result.isSuccess());
+            assertTrue(result.hasNext());
+            String got = result.getNext().getValue(0).getValue();
+            assertEquals("Alice", got);
+        }
+    }
+
+    @Test
+    void executeWithRawBoxedLong() {
+        // Option A: raw Long value auto-converted by C++ layer
+        String query = "MATCH (n:person) WHERE n.ID = $1 RETURN n.fName";
+        try (PreparedStatement ps = conn.prepare(query)) {
+            Map<String, Object> raw = new HashMap<>();
+            raw.put("1", 0L);
+            @SuppressWarnings("unchecked")
+            Map<String, ?> params = (Map<String, ?>) (Map<?, ?>) raw;
+            QueryResult result = conn.execute(ps, params);
+            assertTrue(result.isSuccess());
+            assertTrue(result.hasNext());
+            String got = result.getNext().getValue(0).getValue();
+            assertEquals("Alice", got);
+        }
+    }
+
+    @Test
+    void executeWithRawBoxedDouble() {
+        // Option A: raw Double value auto-converted
+        String query = "MATCH (n:person) WHERE n.eyeSight = $1 RETURN n.fName";
+        try (PreparedStatement ps = conn.prepare(query)) {
+            Map<String, Object> raw = new HashMap<>();
+            raw.put("1", 5.0);
+            @SuppressWarnings("unchecked")
+            Map<String, ?> params = (Map<String, ?>) (Map<?, ?>) raw;
+            QueryResult result = conn.execute(ps, params);
+            assertTrue(result.isSuccess());
+            assertTrue(result.hasNext());
+            String got = result.getNext().getValue(0).getValue();
+            assertEquals("Alice", got);
+        }
+    }
+
+    @Test
+    void executeWithRawBoxedBoolean() {
+        // Option A: raw Boolean value auto-converted
+        String query = "MATCH (n:person) WHERE n.isStudent = $1 RETURN n.fName";
+        try (PreparedStatement ps = conn.prepare(query)) {
+            Map<String, Object> raw = new HashMap<>();
+            raw.put("1", true);
+            @SuppressWarnings("unchecked")
+            Map<String, ?> params = (Map<String, ?>) (Map<?, ?>) raw;
+            QueryResult result = conn.execute(ps, params);
+            assertTrue(result.isSuccess());
+            assertTrue(result.hasNext());
+        }
+    }
+
+    @Test
+    void executeWithUnsupportedTypeThrows() {
+        // Option B: unsupported type throws IllegalArgumentException instead of crashing
+        String query = "MATCH (n:person) WHERE n.fName = $1 RETURN n.fName";
+        try (PreparedStatement ps = conn.prepare(query)) {
+            Map<String, Object> raw = new HashMap<>();
+            raw.put("1", new ArrayList<>(List.of("not", "supported")));
+            @SuppressWarnings("unchecked")
+            Map<String, ?> params = (Map<String, ?>) (Map<?, ?>) raw;
+            assertThrows(IllegalArgumentException.class, () -> {
+                conn.execute(ps, params);
+            });
+        }
+    }
+
+    @Test
+    void executeWithValueWrappedParamsRegression() {
+        // Regression: Value-wrapped path is unchanged
+        String query = "MATCH (n:person) WHERE n.fName = $1 RETURN n.fName";
+        try (PreparedStatement ps = conn.prepare(query)) {
+            Map<String, Value> params = Map.of("1", new Value("Alice"));
+            QueryResult result = conn.execute(ps, params);
+            assertTrue(result.isSuccess());
+            assertTrue(result.hasNext());
+            String got = result.getNext().getValue(0).getValue();
+            assertEquals("Alice", got);
+        }
+    }
+
+    @Test
+    void executeWithMixedRawAndValueParams() {
+        // Option A: mixed raw and Value-wrapped params
+        String query = "MATCH (n:person) WHERE n.fName = $1 AND n.age = $2 RETURN n.fName";
+        try (PreparedStatement ps = conn.prepare(query)) {
+            Map<String, Object> raw = new HashMap<>();
+            raw.put("1", new Value("Alice"));
+            raw.put("2", 35L);
+            @SuppressWarnings("unchecked")
+            Map<String, ?> params = (Map<String, ?>) (Map<?, ?>) raw;
+            QueryResult result = conn.execute(ps, params);
+            assertTrue(result.isSuccess());
+            assertTrue(result.hasNext());
         }
     }
 
