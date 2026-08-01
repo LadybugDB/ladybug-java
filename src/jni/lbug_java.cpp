@@ -832,6 +832,10 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionCreateArrowTab
         auto state = lbug_connection_create_arrow_table(conn, table.c_str(), schema, arrays,
             static_cast<uint64_t>(numArrays), queryResult);
         if (state != LbugSuccess) {
+            // The C API can release a QueryResult into the out-param before
+            // reporting failure (see Connection::setQueryResult). The wrapper
+            // does not own it, so `delete` alone would leak.
+            lbug_query_result_destroy(queryResult);
             delete queryResult;
             throwLastError(env, "Failed to create Arrow table");
             return jobject();
@@ -859,6 +863,10 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionCreateArrowRel
         auto state = lbug_connection_create_arrow_rel_table(conn, table.c_str(), srcTable.c_str(),
             dstTable.c_str(), schema, arrays, static_cast<uint64_t>(numArrays), queryResult);
         if (state != LbugSuccess) {
+            // The C API can release a QueryResult into the out-param before
+            // reporting failure (see Connection::setQueryResult). The wrapper
+            // does not own it, so `delete` alone would leak.
+            lbug_query_result_destroy(queryResult);
             delete queryResult;
             throwLastError(env, "Failed to create Arrow relationship table");
             return jobject();
@@ -898,6 +906,10 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionCreateArrowRel
             static_cast<uint64_t>(numIndicesArrays), indptrSchema, indptrArrays,
             static_cast<uint64_t>(numIndptrArrays), dstColumnPtr, queryResult);
         if (state != LbugSuccess) {
+            // The C API can release a QueryResult into the out-param before
+            // reporting failure (see Connection::setQueryResult). The wrapper
+            // does not own it, so `delete` alone would leak.
+            lbug_query_result_destroy(queryResult);
             delete queryResult;
             throwLastError(env, "Failed to create Arrow CSR relationship table");
             return jobject();
@@ -919,6 +931,10 @@ JNIEXPORT jobject JNICALL Java_com_ladybugdb_Native_lbugConnectionDropArrowTable
         auto* queryResult = new lbug_query_result();
         auto state = lbug_connection_drop_arrow_table(conn, table.c_str(), queryResult);
         if (state != LbugSuccess) {
+            // The C API can release a QueryResult into the out-param before
+            // reporting failure (see Connection::setQueryResult). The wrapper
+            // does not own it, so `delete` alone would leak.
+            lbug_query_result_destroy(queryResult);
             delete queryResult;
             throwLastError(env, "Failed to drop Arrow table");
             return jobject();
