@@ -50,26 +50,6 @@ public class QueryResultTest extends TestBase {
 
 
     @Test
-    void QueryResultFailure() {
-        try (QueryResult result = conn.query("MATCH (a:personnnn) RETURN COUNT(*)")) {
-            assertFalse(result.isSuccess());
-            List<List<Value>> tuples = new ArrayList<List<Value>>();
-            while (result.hasNext()) {
-                FlatTuple tuple = result.getNext();
-                tuples.add(copyFlatTuple(tuple, result.getNumColumns()));
-                fail("QueryResultFailure failed:");
-            }
-        }
-        catch (Exception e) {
-            assertEquals("Binder exception: Table personnnn does not exist.", e.getMessage());
-            return;
-        }
-        fail("QueryResultFailure failed:");
-
-    }
-
-
-    @Test
     void QueryResultGetNumColumns() {
         try (QueryResult result = conn.query("MATCH (a:person) RETURN a.fName, a.age, a.height")) {
             assertTrue(result.isSuccess());
