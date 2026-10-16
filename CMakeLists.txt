@@ -46,17 +46,35 @@ function(lbug_download_maven_jar out_var group_id artifact_id version)
     if(NOT EXISTS "${local_path}")
         message(STATUS "Downloading ${group_id}:${artifact_id}:${version}")
         file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/maven_cache")
-        file(DOWNLOAD "${url}" "${local_path}"
-            STATUS download_status
-            LOG download_log
-            TLS_VERIFY ON)
-        list(GET download_status 0 status_code)
-        list(GET download_status 1 error_msg)
-        if(NOT status_code EQUAL 0)
-            message(FATAL_ERROR
-                "Failed to download Maven artifact ${group_id}:${artifact_id}:${version} "
-                "from ${url}: ${error_msg}")
-        endif()
+        # Maven Central occasionally flakes (HTTP errors / rate limits), as seen
+        # in CI with arrow-c-data. Retry a few times before failing the build.
+        set(_lbug_dl_attempt 0)
+        set(_lbug_dl_max_attempts 5)
+        while(_lbug_dl_attempt LESS _lbug_dl_max_attempts)
+            math(EXPR _lbug_dl_attempt "${_lbug_dl_attempt} + 1")
+            file(DOWNLOAD "${url}" "${local_path}"
+                STATUS download_status
+                LOG download_log
+                TLS_VERIFY ON
+                TIMEOUT 120)
+            list(GET download_status 0 status_code)
+            list(GET download_status 1 error_msg)
+            if(status_code EQUAL 0)
+                break()
+            endif()
+            # Remove any partial file so the next attempt starts clean.
+            file(REMOVE "${local_path}")
+            if(_lbug_dl_attempt LESS _lbug_dl_max_attempts)
+                message(STATUS "Download attempt ${_lbug_dl_attempt}/${_lbug_dl_max_attempts} "
+                    "for ${group_id}:${artifact_id}:${version} failed (${error_msg}); "
+                    "retrying in 10s...")
+                execute_process(COMMAND ${CMAKE_COMMAND} -E sleep 10)
+            else()
+                message(FATAL_ERROR
+                    "Failed to download Maven artifact ${group_id}:${artifact_id}:${version} "
+                    "from ${url} after ${_lbug_dl_max_attempts} attempts: ${error_msg}")
+            endif()
+        endwhile()
     endif()
     set(${out_var} "${local_path}" PARENT_SCOPE)
 endfunction()
