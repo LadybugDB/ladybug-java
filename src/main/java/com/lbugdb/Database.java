@@ -9,14 +9,7 @@ public class Database implements AutoCloseable {
     String db_path;
     long buffer_size;
     long max_db_size;
-    boolean enableCompression = true;
     boolean destroyed = false;
-    boolean readOnly = false;
-    boolean autoCheckpoint = true;
-    boolean throwOnWalReplayFailure = true;
-    boolean enableChecksums = true;
-    boolean enableMultiWrites = false;
-    boolean enableDefaultHashIndex = true;
     long max_num_threads;
     long checkpointThreshold;
 
@@ -40,8 +33,9 @@ public class Database implements AutoCloseable {
         this.max_num_threads = 0;
         this.max_db_size = 0;
         this.checkpointThreshold = -1;
-        db_ref = Native.lbugDatabaseInit(databasePath, 0, true, false, max_db_size,
-                autoCheckpoint, checkpointThreshold, throwOnWalReplayFailure, enableChecksums);
+        // All nulls: pure engine defaults.
+        db_ref = Native.lbugDatabaseInitExtended(databasePath, null, null, null, null, null, null,
+                null, null, null, null, null);
     }
 
     /**
@@ -91,16 +85,13 @@ public class Database implements AutoCloseable {
         this.db_path = databasePath;
         this.buffer_size = bufferPoolSize;
         this.max_num_threads = 0;
-        this.enableCompression = enableCompression;
-        this.readOnly = readOnly;
         this.max_db_size = maxDBSize;
-        this.autoCheckpoint = autoCheckpoint;
         this.checkpointThreshold = checkpointThreshold;
-        this.throwOnWalReplayFailure = throwOnWalReplayFailure;
-        this.enableChecksums = enableChecksums;
-        db_ref = Native.lbugDatabaseInit(databasePath, bufferPoolSize, enableCompression, readOnly,
-                maxDBSize, autoCheckpoint, checkpointThreshold, throwOnWalReplayFailure,
-                enableChecksums);
+        // Fields this overload predates (maxNumThreads, enableMultiWrites,
+        // enableDefaultHashIndex) are left null so the engine default applies.
+        db_ref = Native.lbugDatabaseInitExtended(databasePath, bufferPoolSize, null,
+                enableCompression, readOnly, maxDBSize, autoCheckpoint, checkpointThreshold,
+                throwOnWalReplayFailure, enableChecksums, null, null);
     }
 
     /**
@@ -127,15 +118,8 @@ public class Database implements AutoCloseable {
         this.db_path = databasePath;
         this.buffer_size = bufferPoolSize;
         this.max_num_threads = maxNumThreads;
-        this.enableCompression = enableCompression;
-        this.readOnly = readOnly;
         this.max_db_size = maxDBSize;
-        this.autoCheckpoint = autoCheckpoint;
         this.checkpointThreshold = checkpointThreshold;
-        this.throwOnWalReplayFailure = throwOnWalReplayFailure;
-        this.enableChecksums = enableChecksums;
-        this.enableMultiWrites = enableMultiWrites;
-        this.enableDefaultHashIndex = enableDefaultHashIndex;
         db_ref = Native.lbugDatabaseInitExtended(databasePath, bufferPoolSize, maxNumThreads,
                 enableCompression, readOnly, maxDBSize, autoCheckpoint, checkpointThreshold,
                 throwOnWalReplayFailure, enableChecksums, enableMultiWrites,

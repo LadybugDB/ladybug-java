@@ -73,17 +73,13 @@ public class Native {
     protected static native void lbugNativeReloadLibrary(String libPath);
 
     // Database
-    protected static native long lbugDatabaseInit(String databasePath, long bufferPoolSize,
-            boolean enableCompression, boolean readOnly, long maxDbSize, boolean autoCheckpoint,
-            long checkpointThreshold, boolean throwOnWalReplayFailure, boolean enableChecksums);
-
-    // TODO: Collapse this back into lbugDatabaseInit after published main-repo
-    // Java native artifacts have been rebuilt with the extended system_config fields.
-    protected static native long lbugDatabaseInitExtended(String databasePath, long bufferPoolSize,
-            long maxNumThreads,
-            boolean enableCompression, boolean readOnly, long maxDbSize, boolean autoCheckpoint,
-            long checkpointThreshold, boolean throwOnWalReplayFailure, boolean enableChecksums,
-            boolean enableMultiWrites, boolean enableDefaultHashIndex);
+    //
+    // All settings are boxed: null means "use the engine default" and only
+    // non-null values override the engine configuration.
+    protected static native long lbugDatabaseInitExtended(String databasePath, Long bufferPoolSize,
+            Long maxNumThreads, Boolean enableCompression, Boolean readOnly, Long maxDbSize,
+            Boolean autoCheckpoint, Long checkpointThreshold, Boolean throwOnWalReplayFailure,
+            Boolean enableChecksums, Boolean enableMultiWrites, Boolean enableDefaultHashIndex);
 
     protected static native void lbugDatabaseDestroy(Database db);
 

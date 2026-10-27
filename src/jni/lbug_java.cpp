@@ -581,40 +581,83 @@ JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugNativeReloadLibrary(JNIEnv*
     }
 }
 
+namespace {
+
+// Boxed Java settings: null means "keep the engine default". The config
+// below already starts from lbug_default_system_config(), so nulls are simply
+// skipped.
+bool unboxBoolean(JNIEnv* env, jobject boxed, bool& out) {
+    if (boxed == nullptr) {
+        return false;
+    }
+    jclass cls = env->FindClass("java/lang/Boolean");
+    jmethodID mid = env->GetMethodID(cls, "booleanValue", "()Z");
+    out = env->CallBooleanMethod(boxed, mid);
+    return true;
+}
+
+bool unboxLong(JNIEnv* env, jobject boxed, int64_t& out) {
+    if (boxed == nullptr) {
+        return false;
+    }
+    jclass cls = env->FindClass("java/lang/Long");
+    jmethodID mid = env->GetMethodID(cls, "longValue", "()J");
+    out = env->CallLongMethod(boxed, mid);
+    return true;
+}
+
+} // namespace
+
 JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugDatabaseInitExtended(JNIEnv* env, jclass,
-    jstring databasePath, jlong bufferPoolSize, jlong maxNumThreads, jboolean enableCompression,
-    jboolean readOnly, jlong maxDbSize, jboolean autoCheckpoint, jlong checkpointThreshold,
-    jboolean throwOnWalReplayFailure, jboolean enableChecksums, jboolean enableMultiWrites,
-    jboolean enableDefaultHashIndex) {
+    jstring databasePath, jobject bufferPoolSize, jobject maxNumThreads, jobject enableCompression,
+    jobject readOnly, jobject maxDbSize, jobject autoCheckpoint, jobject checkpointThreshold,
+    jobject throwOnWalReplayFailure, jobject enableChecksums, jobject enableMultiWrites,
+    jobject enableDefaultHashIndex) {
     try {
         const char* path = env->GetStringUTFChars(databasePath, JNI_FALSE);
         auto systemConfig = lbug_default_system_config();
-        if (bufferPoolSize != 0) {
-            systemConfig.buffer_pool_size = static_cast<uint64_t>(bufferPoolSize);
+        int64_t longValue = 0;
+        bool boolValue = false;
+        if (unboxLong(env, bufferPoolSize, longValue) && longValue != 0) {
+            systemConfig.buffer_pool_size = static_cast<uint64_t>(longValue);
         }
-        if (maxNumThreads != 0) {
-            systemConfig.max_num_threads = static_cast<uint64_t>(maxNumThreads);
+        if (unboxLong(env, maxNumThreads, longValue) && longValue != 0) {
+            systemConfig.max_num_threads = static_cast<uint64_t>(longValue);
         }
-        systemConfig.enable_compression = enableCompression;
-        systemConfig.read_only = readOnly;
-        if (maxDbSize != 0) {
-            auto unsignedMaxDbSize = static_cast<uint64_t>(maxDbSize);
+        if (unboxBoolean(env, enableCompression, boolValue)) {
+            systemConfig.enable_compression = boolValue;
+        }
+        if (unboxBoolean(env, readOnly, boolValue)) {
+            systemConfig.read_only = boolValue;
+        }
+        if (unboxLong(env, maxDbSize, longValue) && longValue != 0) {
+            auto unsignedMaxDbSize = static_cast<uint64_t>(longValue);
             if ((unsignedMaxDbSize & (unsignedMaxDbSize - 1)) != 0) {
                 env->ReleaseStringUTFChars(databasePath, path);
                 env->ThrowNew(J_C_Exception,
                     "Buffer manager exception: The given max db size should be a power of 2.");
                 return 0;
             }
-            systemConfig.max_db_size = static_cast<uint64_t>(maxDbSize);
+            systemConfig.max_db_size = static_cast<uint64_t>(longValue);
         }
-        systemConfig.auto_checkpoint = autoCheckpoint;
-        if (checkpointThreshold >= 0) {
-            systemConfig.checkpoint_threshold = static_cast<uint64_t>(checkpointThreshold);
+        if (unboxBoolean(env, autoCheckpoint, boolValue)) {
+            systemConfig.auto_checkpoint = boolValue;
         }
-        systemConfig.throw_on_wal_replay_failure = throwOnWalReplayFailure;
-        systemConfig.enable_checksums = enableChecksums;
-        systemConfig.enable_multi_writes = enableMultiWrites;
-        systemConfig.enable_default_hash_index = enableDefaultHashIndex;
+        if (unboxLong(env, checkpointThreshold, longValue) && longValue >= 0) {
+            systemConfig.checkpoint_threshold = static_cast<uint64_t>(longValue);
+        }
+        if (unboxBoolean(env, throwOnWalReplayFailure, boolValue)) {
+            systemConfig.throw_on_wal_replay_failure = boolValue;
+        }
+        if (unboxBoolean(env, enableChecksums, boolValue)) {
+            systemConfig.enable_checksums = boolValue;
+        }
+        if (unboxBoolean(env, enableMultiWrites, boolValue)) {
+            systemConfig.enable_multi_writes = boolValue;
+        }
+        if (unboxBoolean(env, enableDefaultHashIndex, boolValue)) {
+            systemConfig.enable_default_hash_index = boolValue;
+        }
         try {
             auto* db = new lbug_database();
             auto state = lbug_database_init(path, systemConfig, db);
@@ -640,15 +683,6 @@ JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugDatabaseInitExtended(JNIEn
         throwJNIException(env, "Unknown Error");
     }
     return 0;
-}
-
-JNIEXPORT jlong JNICALL Java_com_ladybugdb_Native_lbugDatabaseInit(JNIEnv* env, jclass clazz,
-    jstring databasePath, jlong bufferPoolSize, jboolean enableCompression, jboolean readOnly,
-    jlong maxDbSize, jboolean autoCheckpoint, jlong checkpointThreshold,
-    jboolean throwOnWalReplayFailure, jboolean enableChecksums) {
-    return Java_com_ladybugdb_Native_lbugDatabaseInitExtended(env, clazz, databasePath,
-        bufferPoolSize, 0, enableCompression, readOnly, maxDbSize, autoCheckpoint,
-        checkpointThreshold, throwOnWalReplayFailure, enableChecksums, false, true);
 }
 
 JNIEXPORT void JNICALL Java_com_ladybugdb_Native_lbugDatabaseDestroy(JNIEnv* env, jclass,
