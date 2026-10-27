@@ -17,7 +17,7 @@ class MainActivity : Activity() {
 }
 
 fun exampleConfig(): SystemConfig = SystemConfig().apply {
-    maxNumThreads = 2
+    maxNumThreads = 2L
     enableDefaultHashIndex = true
 }
 
