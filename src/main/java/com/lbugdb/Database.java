@@ -15,7 +15,7 @@ public class Database implements AutoCloseable {
     boolean autoCheckpoint = true;
     boolean throwOnWalReplayFailure = true;
     boolean enableChecksums = true;
-    boolean enableMultiWrites = false;
+    boolean enableMultiWrites = true;
     boolean enableDefaultHashIndex = true;
     long max_num_threads;
     long checkpointThreshold;

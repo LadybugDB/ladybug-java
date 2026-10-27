@@ -13,6 +13,6 @@ public class SystemConfig {
     public long checkpointThreshold = -1;
     public boolean throwOnWalReplayFailure = true;
     public boolean enableChecksums = true;
-    public boolean enableMultiWrites = false;
+    public boolean enableMultiWrites = true;
     public boolean enableDefaultHashIndex = true;
 }
